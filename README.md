@@ -26,9 +26,10 @@ listens to your music, tells you what to play next, and mixes it in for you.
   control is yours and the rest carries on. ✕ cancels the whole transition.
 - **Auto DJ.** It plays a whole set hands-free, taking tracks from your queue or its own best pick
   and mixing each one in on the outro.
-- **Claude copilot (optional).** Chat with a DJ assistant that can see your decks and library. It can
-  pick tracks, suggest real-world songs to look up (with search links), and plan a whole set (for
-  example _"60 minutes, warm-up to peak"_).
+- **AI DJ chat (optional, free options).** Chat with a DJ assistant that can see your decks and
+  library. It can pick tracks, suggest real-world songs to look up (with search links), and plan a
+  whole set (for example _"60 minutes, warm-up to peak"_). It works with free services (Google
+  Gemini, Groq, OpenRouter, or Ollama on your own computer) as well as Claude.
 
 ### The decks and mixer
 
@@ -67,22 +68,36 @@ Press ▶ on deck A, then hit **AI Mix** on a suggestion.
 
 Requires Node 22+.
 
-### Turning on Claude (optional)
+### Turning on the AI chat (free)
 
-The built-in AI (suggestions, AI Mix, Auto DJ) needs no key. The Claude copilot (chat, real-song
-discovery and set planning) can be turned on in either of two ways:
+The built-in AI (suggestions, AI Mix, Auto DJ) needs no key at all. The AI DJ chat (talking to a DJ
+assistant, real-song discovery and set planning) needs a language model, and several are free:
 
-- **Server key:** `cp .env.example .env` and set `ANTHROPIC_API_KEY`. The key stays on the server,
-  and the browser talks to `/api`.
-- **Your own key:** open **Ask Claude** (or Settings → AI) and paste a key. It's stored only in that
-  browser and sent directly to Anthropic.
+| Service                                         | Cost                                      | Get a key                                                        |
+| ----------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------- |
+| **Google Gemini** (default)                     | Free tier on all Flash models, no card    | [Google AI Studio](https://aistudio.google.com/apikey)           |
+| **Groq**                                        | Free tier, very fast, ~1,000 requests/day | [GroqCloud console](https://console.groq.com/keys)               |
+| **OpenRouter**                                  | Free models, 50 requests/day              | [OpenRouter keys](https://openrouter.ai/keys)                    |
+| **Ollama**                                      | Free, runs on your own computer, no key   | [Download Ollama](https://ollama.com/download)                   |
+| **Anthropic Claude**                            | Paid                                      | [Anthropic Console](https://console.anthropic.com/settings/keys) |
+| Any OpenAI-compatible API (LM Studio, Mistral…) | Depends                                   | –                                                                |
 
-The default model is **Claude Opus 5.5**. You can switch to Sonnet 5.5 or Haiku 4.5 in Settings, or
-with `MIXMIND_AI_MODEL` on the server. Requests opt into Anthropic's server-side refusal fallbacks
-(`fallbacks: "default"`) on the models that support them.
+To connect, open the **Ask AI** tab (or click **Offline AI** in the top bar), pick a service, follow
+the two steps to get a key, paste it and press **Connect**. The key is checked first, then saved only
+in your browser and sent only to that service, so this also works on static hosting with no server.
 
-**Privacy:** audio never leaves your device. Claude only receives track metadata (title, artist,
-genre, BPM, key, energy, length, mood, intro and outro length) and what the decks are doing.
+To give everyone using your deployment the chat without their own key, set one key on the server
+instead (`cp .env.example .env`, then for example `GEMINI_API_KEY=...`). It stays on the server and the
+browser talks to `/api`. A visitor who connects their own service uses that instead.
+
+Model defaults: `gemini-flash-latest`, `openai/gpt-oss-120b` (Groq), `openrouter/free` (OpenRouter
+picks a free model) and `llama3.2` (Ollama). You can change the model in the app; **Connect** loads
+the list the service offers. Claude defaults to Claude Opus 5.5, and its requests opt into Anthropic's
+server-side refusal fallbacks (`fallbacks: "default"`).
+
+**Privacy:** audio never leaves your device. The AI service only receives track metadata (title,
+artist, genre, BPM, key, energy, length, mood, intro and outro length) and what the decks are doing.
+On free tiers some providers (for example Google) may use requests to improve their products.
 
 ## Deploying
 
@@ -91,23 +106,25 @@ npm run build   # web app → dist/, API server → dist-server/
 npm start       # serves both on http://localhost:8787
 ```
 
-| Variable             | Default           | Purpose                                            |
-| -------------------- | ----------------- | -------------------------------------------------- |
-| `ANTHROPIC_API_KEY`  | –                 | Enables the Claude copilot through the server      |
-| `MIXMIND_AI_MODEL`   | `claude-opus-5-5` | Default Claude model                               |
-| `MIXMIND_RATE_LIMIT` | `40`              | AI requests per IP per 5 minutes                   |
-| `PORT` / `HOST`      | `8787` / 0.0.0.0  | Where the server listens                           |
-| `BASE_PATH`          | `/`               | Build-time base path when hosting under a sub-path |
+| Variable                                                                       | Default          | Purpose                                                                           |
+| ------------------------------------------------------------------------------ | ---------------- | --------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` / `ANTHROPIC_API_KEY` | –                | Turns on the AI chat through the server (first key found is used)                 |
+| `AI_PROVIDER`                                                                  | auto             | Force a provider: `gemini`, `groq`, `openrouter`, `ollama`, `anthropic`, `custom` |
+| `AI_MODEL`                                                                     | provider default | Model to use                                                                      |
+| `AI_BASE_URL` / `AI_API_KEY`                                                   | –                | Address and key for `ollama` or `custom` (OpenAI-compatible)                      |
+| `MIXMIND_RATE_LIMIT`                                                           | `40`             | AI requests per IP per 5 minutes                                                  |
+| `PORT` / `HOST`                                                                | `8787` / 0.0.0.0 | Where the server listens                                                          |
+| `BASE_PATH`                                                                    | `/`              | Build-time base path when hosting under a sub-path                                |
 
 **Docker:**
 
 ```bash
 docker build -t mixmind .
-docker run -p 8787:8787 -e ANTHROPIC_API_KEY=sk-ant-... mixmind
+docker run -p 8787:8787 -e GEMINI_API_KEY=your-free-key mixmind
 ```
 
-**Static hosting** (GitHub Pages, Netlify, any CDN): the `vite build` output works on its own, and
-Claude then runs in bring-your-own-key mode. This repo includes a GitHub Pages workflow. To use it,
+**Static hosting** (GitHub Pages, Netlify, any CDN): the `vite build` output works on its own; each
+visitor connects the AI chat with their own (free) key. This repo includes a GitHub Pages workflow. To use it,
 go to Settings → Pages, set the source to **GitHub Actions**, then run **Deploy to GitHub Pages**
 from the Actions tab.
 
@@ -123,7 +140,8 @@ src/
   analysis/    Web Worker: FFT and onsets → tempo and beat grid, downbeats, key, loudness,
                structure, timbre.
   library/     Import, tags and artwork, IndexedDB, decoding, the demo-track synthesizer.
-  ai/          Recommender, transition planner, auto-mixer, Auto DJ, Claude client and prompts.
+  ai/          Recommender, transition planner, auto-mixer, Auto DJ, and the chat's language-model
+               clients (one for OpenAI-compatible APIs, one for Claude) with shared prompts.
   controller/  Deck and mixer actions, the engine ↔ UI bridge, keyboard, MIDI, recording.
   components/  React UI: decks, mixer, waveforms, library, AI panel.
   state/       Zustand stores.
@@ -158,14 +176,14 @@ server/        Hono API: /api/health, /api/ai/picks, /api/ai/chat (streaming), /
 
 ## Development
 
-| Command             | What it does                                                               |
-| ------------------- | -------------------------------------------------------------------------- |
-| `npm run dev`       | Dev server with the API mounted (reads `.env`)                             |
-| `npm test`          | Unit tests: DSP, analysis accuracy, harmonic rules, planner, Claude client |
-| `npm run test:e2e`  | Playwright on desktop and phone, against the production build              |
-| `npm run lint`      | ESLint                                                                     |
-| `npm run typecheck` | TypeScript (strict)                                                        |
-| `npm run format`    | Prettier                                                                   |
+| Command             | What it does                                                            |
+| ------------------- | ----------------------------------------------------------------------- |
+| `npm run dev`       | Dev server with the API mounted (reads `.env`)                          |
+| `npm test`          | Unit tests: DSP, analysis accuracy, harmonic rules, planner, AI clients |
+| `npm run test:e2e`  | Playwright on desktop and phone, against the production build           |
+| `npm run lint`      | ESLint                                                                  |
+| `npm run typecheck` | TypeScript (strict)                                                     |
+| `npm run format`    | Prettier                                                                |
 
 CI runs all of these on every push.
 

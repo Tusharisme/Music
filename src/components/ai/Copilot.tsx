@@ -1,17 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { useAI, type ClaudePicks } from '../../state/ai';
+import { useAI, type CopilotPicks } from '../../state/ai';
 import { useLibrary } from '../../state/library';
-import { useSettings } from '../../state/settings';
 import { useUI } from '../../state/ui';
 import { useDecks } from '../../state/decks';
-import {
-  askForPicks,
-  buildSetPlan,
-  clearChat,
-  refreshClaudeStatus,
-  sendChat,
-  stopChat,
-} from '../../ai/copilot';
+import { askForPicks, buildSetPlan, clearChat, sendChat, stopChat } from '../../ai/copilot';
 import { aiMix } from '../../ai/autodj';
 import { autoDj } from '../../ai/autodj';
 import { loadTrack } from '../../controller/decks';
@@ -20,6 +12,8 @@ import { Artwork } from '../Artwork';
 import { KeyBadge } from '../KeyBadge';
 import { Icon } from '../Icon';
 import { RichText } from './RichText';
+import { ProviderSetup } from './ProviderSetup';
+import { providerInfo } from '../../ai/llm/providers';
 import { trackBpm, trackKey } from '../../ai/recommender';
 
 function searchLinks(title: string, artist: string) {
@@ -39,7 +33,7 @@ function freeDeckIndex(): number {
   return decks[0].trackId ? 1 : 0;
 }
 
-function PicksView({ picks }: { picks: ClaudePicks }) {
+function PicksView({ picks }: { picks: CopilotPicks }) {
   const tracks = useLibrary((s) => s.tracks);
   return (
     <div className="picks">
@@ -119,63 +113,22 @@ function PicksView({ picks }: { picks: ClaudePicks }) {
   );
 }
 
-function ClaudeSetup() {
-  const status = useAI((s) => s.claude);
-  const apiKey = useSettings((s) => s.apiKey);
-  const set = useSettings((s) => s.set);
-  const [draft, setDraft] = useState(apiKey);
+function CopilotSetup() {
+  const status = useAI((s) => s.copilot);
   return (
-    <div className="claude-setup">
+    <div className="copilot-setup">
       <div className="ai-hero">
         <span className="ai-orb is-big" aria-hidden />
         <div>
-          <h3>Connect Claude for the AI DJ copilot</h3>
+          <h3>Turn on the AI DJ chat – for free</h3>
           <p className="muted">
-            The built-in AI (suggestions, AI Mix, Auto DJ) already works offline. Claude adds a DJ you can
-            talk to: it explains transitions, picks tracks for a vibe, plans whole sets and finds new songs
-            that would mix well.
+            Suggestions, AI Mix and Auto DJ work without a key. Connect a language model to chat with an AI
+            DJ, plan sets and discover new songs. Gemini and Groq are free, no card needed.
           </p>
         </div>
       </div>
-      <ol className="setup-steps">
-        <li>
-          <b>Hosting the app?</b> Start the server with <code>ANTHROPIC_API_KEY</code> set – your key stays on
-          the server.
-        </li>
-        <li>
-          <b>Or use your own key</b> right here (stored only in this browser):
-          <div className="key-row">
-            <input
-              type="password"
-              placeholder="sk-ant-…"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              aria-label="Anthropic API key"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <button
-              type="button"
-              className="btn btn-ai btn-s"
-              onClick={() => {
-                set({ apiKey: draft.trim(), aiMode: 'auto' });
-                void refreshClaudeStatus(true);
-              }}
-            >
-              Save
-            </button>
-          </div>
-          <a
-            href="https://console.anthropic.com/settings/keys"
-            target="_blank"
-            rel="noreferrer noopener"
-            className="small"
-          >
-            Get an API key →
-          </a>
-        </li>
-      </ol>
-      {status.reason && <p className="faint small">{status.reason}</p>}
+      <ProviderSetup />
+      {status.reason && status.state === 'unavailable' && <p className="faint small">{status.reason}</p>}
     </div>
   );
 }
@@ -211,7 +164,7 @@ export function CopilotChat() {
   const chat = useAI((s) => s.chat);
   const busy = useAI((s) => s.chatBusy || s.picksBusy);
   const streaming = useAI((s) => s.chatBusy);
-  const status = useAI((s) => s.claude);
+  const status = useAI((s) => s.copilot);
   const [text, setText] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -221,12 +174,12 @@ export function CopilotChat() {
 
   if (status.state === 'checking') {
     return (
-      <div className="claude-setup">
-        <span className="spinner" /> Checking Claude…
+      <div className="copilot-setup">
+        <span className="spinner" /> Checking the AI connection…
       </div>
     );
   }
-  if (status.state !== 'ready') return <ClaudeSetup />;
+  if (status.state !== 'ready') return <CopilotSetup />;
 
   return (
     <div className="copilot">
@@ -239,7 +192,8 @@ export function CopilotChat() {
               sees both decks, your library and what you have played.
               <span className="faint">
                 {' '}
-                ({status.via === 'server' ? 'via the MixMind server' : 'using your API key'})
+                ({status.provider ? providerInfo(status.provider).label : 'AI'}
+                {status.via === 'server' ? ' via the MixMind server' : ''})
               </span>
             </p>
           </div>
@@ -308,12 +262,12 @@ export function CopilotChat() {
 export function SetPlanner() {
   const plan = useAI((s) => s.setPlan);
   const busy = useAI((s) => s.setPlanBusy);
-  const status = useAI((s) => s.claude);
+  const status = useAI((s) => s.copilot);
   const tracks = useLibrary((s) => s.tracks);
   const toast = useUI((s) => s.toast);
   const [mins, setMins] = useState(30);
   const [vibe, setVibe] = useState('Warm-up that builds into peak time');
-  if (status.state !== 'ready') return <ClaudeSetup />;
+  if (status.state !== 'ready') return <CopilotSetup />;
   return (
     <div className="planner">
       <div className="planner-form">

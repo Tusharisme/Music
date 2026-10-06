@@ -27,8 +27,9 @@ export function HelpModal() {
               (Build, Cool down, Switch it up…) any time.
             </li>
             <li>
-              Connect <b>Claude</b> (Settings → AI) to chat with an AI DJ, plan whole sets and discover new
-              songs that would mix well.
+              Connect a language model in Settings → AI to chat with an AI DJ, plan whole sets and discover
+              new songs that would mix well. <b>Google Gemini</b>, <b>Groq</b>, <b>OpenRouter</b> and{' '}
+              <b>Ollama</b> work for free; Claude is supported too.
             </li>
           </ol>
         </section>

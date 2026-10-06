@@ -3,6 +3,7 @@ import { create } from 'zustand';
 export type MobileTab = 'decks' | 'mixer' | 'library' | 'ai';
 export type Modal = null | 'settings' | 'help' | 'track' | 'welcome';
 export type BottomTab = 'library' | 'ai' | 'history';
+export type SettingsTab = 'audio' | 'decks' | 'ai' | 'library' | 'midi';
 
 export interface Toast {
   id: number;
@@ -15,6 +16,7 @@ interface UIState {
   bottomTab: BottomTab;
   modal: Modal;
   editTrackId: string | null;
+  settingsTab: SettingsTab;
   toasts: Toast[];
   dragTrackId: string | null;
   midiLearn: boolean;
@@ -22,6 +24,7 @@ interface UIState {
   setTab: (t: MobileTab) => void;
   setBottomTab: (t: BottomTab) => void;
   open: (m: Modal, trackId?: string) => void;
+  openSettings: (tab: SettingsTab) => void;
   close: () => void;
   toast: (text: string, kind?: Toast['kind']) => void;
   dismiss: (id: number) => void;
@@ -37,13 +40,15 @@ export const useUI = create<UIState>()((set, get) => ({
   bottomTab: 'library',
   modal: null,
   editTrackId: null,
+  settingsTab: 'audio',
   toasts: [],
   dragTrackId: null,
   midiLearn: false,
   midiLearnTarget: null,
   setTab: (tab) => set({ tab }),
   setBottomTab: (bottomTab) => set({ bottomTab }),
-  open: (modal, trackId) => set({ modal, editTrackId: trackId ?? null }),
+  open: (modal, trackId) => set({ modal, editTrackId: trackId ?? null, settingsTab: 'audio' }),
+  openSettings: (settingsTab) => set({ modal: 'settings', editTrackId: null, settingsTab }),
   close: () => set({ modal: null, editTrackId: null }),
   toast: (text, kind = 'info') => {
     const id = toastId++;

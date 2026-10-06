@@ -31,7 +31,7 @@ export function summarizeTrack(t: TrackRecord): TrackSummary | null {
   };
 }
 
-/** Snapshot of the DJ's situation for Claude (library capped to the most relevant 300 tracks). */
+/** Snapshot of the DJ's situation for the AI copilot (library capped to the most relevant 300 tracks). */
 export function buildContext(): DjContext {
   const { decks, master } = useDecks.getState();
   const tracks = useLibrary.getState().tracks;

@@ -15,7 +15,7 @@ import { useUI } from './state/ui';
 import { useDecks } from './state/decks';
 import { startSuggestionService } from './ai/suggest';
 import { startAutoDjWatchdog } from './ai/autodj';
-import { refreshClaudeStatus } from './ai/copilot';
+import { refreshCopilotStatus } from './ai/copilot';
 import { installMidiLearn } from './midi/midi';
 import { analysisQueue } from './library/analysisQueue';
 
@@ -34,7 +34,18 @@ startSuggestionService();
 startAutoDjWatchdog();
 installKeyboard();
 installMidiLearn();
-void refreshClaudeStatus();
+void refreshCopilotStatus();
+// Re-check whenever the AI service, key, model or mode changes.
+useSettings.subscribe((s, prev) => {
+  if (
+    s.aiMode !== prev.aiMode ||
+    s.aiProvider !== prev.aiProvider ||
+    s.aiKeys !== prev.aiKeys ||
+    s.aiModels !== prev.aiModels ||
+    s.aiBaseUrls !== prev.aiBaseUrls
+  )
+    void refreshCopilotStatus();
+});
 
 // ---- browsers only start audio after a user gesture
 const unlock = () => {

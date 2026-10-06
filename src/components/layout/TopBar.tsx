@@ -9,6 +9,7 @@ import { autoDj } from '../../ai/autodj';
 import { fmtBpm, fmtTime } from '../../utils/format';
 import { midiSupported } from '../../midi/midi';
 import { Icon } from '../Icon';
+import { providerInfo } from '../../ai/llm/providers';
 
 function RecTimer() {
   const ref = useRef<HTMLSpanElement>(null);
@@ -24,14 +25,16 @@ export function TopBar() {
   const master = useDecks((s) => s.master);
   const md = useDecks((s) => s.decks[s.master]);
   const autoDjOn = useAI((s) => s.autoDj);
-  const claude = useAI((s) => s.claude);
+  const copilot = useAI((s) => s.copilot);
   const mixPhase = useAI((s) => s.mix.phase);
   const recording = useRecording((s) => s.recording);
   const open = useUI((s) => s.open);
+  const openSettings = useUI((s) => s.openSettings);
   const midiLearn = useUI((s) => s.midiLearn);
   const setMidiLearn = useUI((s) => s.setMidiLearn);
   const { canInstall, install } = useInstallPrompt();
   const bpm = md.trackId ? md.bpm * md.tempo : 0;
+  const aiName = copilot.provider ? providerInfo(copilot.provider).short : 'AI';
 
   return (
     <header className="topbar">
@@ -72,17 +75,19 @@ export function TopBar() {
         <span className="hide-s">{recording ? 'Stop' : 'Rec'}</span>
         <RecTimer />
       </button>
-      <span
-        className={`claude-dot ${claude.state === 'ready' ? 'is-on' : ''}`}
+      <button
+        type="button"
+        className={`ai-dot ${copilot.state === 'ready' ? 'is-on' : ''}`}
+        onClick={() => openSettings('ai')}
         title={
-          claude.state === 'ready'
-            ? `Claude connected (${claude.via === 'server' ? 'server' : 'your key'})`
-            : 'Claude not connected – the built-in AI still works'
+          copilot.state === 'ready'
+            ? `AI chat connected: ${aiName}${copilot.model ? ` (${copilot.model})` : ''}${copilot.via === 'server' ? ' via the server' : ''}`
+            : 'AI chat not connected – suggestions, AI Mix and Auto DJ still work. Click to connect a free AI.'
         }
       >
         <Icon name="sparkle" size={12} />{' '}
-        <span className="hide-s">{claude.state === 'ready' ? 'Claude' : 'Offline AI'}</span>
-      </span>
+        <span className="hide-s">{copilot.state === 'ready' ? aiName : 'Offline AI'}</span>
+      </button>
       {midiSupported() && (
         <button
           type="button"

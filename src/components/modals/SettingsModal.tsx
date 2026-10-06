@@ -1,11 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useSettings, type AiMode, type Effort } from '../../state/settings';
-import { useUI } from '../../state/ui';
+import { useUI, type SettingsTab } from '../../state/ui';
 import { useLibrary } from '../../state/library';
 import { engine } from '../../audio/engine';
-import { MODELS } from '../../ai/claude/models';
-import { refreshClaudeStatus } from '../../ai/copilot';
 import { useAI } from '../../state/ai';
+import { providerInfo } from '../../ai/llm/providers';
+import { ProviderSetup } from '../ai/ProviderSetup';
 import { analysisQueue } from '../../library/analysisQueue';
 import { enableMidi, midiInputs, midiSupported } from '../../midi/midi';
 import { Segmented, Switch } from '../controls/Btn';
@@ -80,9 +80,9 @@ export function SettingsModal() {
   const s = useSettings();
   const close = useUI((u) => u.close);
   const toast = useUI((u) => u.toast);
-  const claude = useAI((a) => a.claude);
+  const copilot = useAI((a) => a.copilot);
   const tracks = useLibrary((l) => l.tracks);
-  const [tab, setTab] = useState<'audio' | 'decks' | 'ai' | 'library' | 'midi'>('audio');
+  const [tab, setTab] = useState<SettingsTab>(() => useUI.getState().settingsTab);
   const [midiDevices, setMidiDevices] = useState<string[]>([]);
 
   return (
@@ -218,79 +218,47 @@ export function SettingsModal() {
       {tab === 'ai' && (
         <div className="settings">
           <p className="muted">
-            The built-in AI (track analysis, suggestions, AI Mix, Auto DJ) runs fully in your browser. Claude
-            powers the conversational copilot, set planning and new-music discovery.
+            Track analysis, suggestions, AI Mix and Auto DJ run fully in your browser – no key needed. A
+            language model adds the AI DJ chat, set planning and new-music discovery; Google Gemini, Groq,
+            OpenRouter and Ollama can all be used for free.
           </p>
           <Row
-            label="Claude connection"
+            label="AI chat connection"
             hint={
-              claude.state === 'ready'
-                ? `Connected via ${claude.via === 'server' ? 'the MixMind server' : 'your API key'} (${claude.model ?? s.model})`
-                : claude.reason
+              copilot.state === 'ready'
+                ? `Connected: ${copilot.provider ? providerInfo(copilot.provider).label : 'AI'}${copilot.model ? ` · ${copilot.model}` : ''}${copilot.via === 'server' ? ' (via the MixMind server)' : ''}`
+                : copilot.reason
             }
           >
             <Segmented<AiMode>
               value={s.aiMode}
-              onChange={(aiMode) => {
-                s.set({ aiMode });
-                void refreshClaudeStatus(true);
-              }}
+              onChange={(aiMode) => s.set({ aiMode })}
               options={[
-                { value: 'auto', label: 'Auto' },
-                { value: 'server', label: 'Server' },
-                { value: 'byok', label: 'My key' },
+                {
+                  value: 'auto',
+                  label: 'Auto',
+                  title: "Use the server's AI if it has one, otherwise this browser's",
+                },
+                { value: 'server', label: 'Server', title: 'Only the MixMind server’s AI' },
+                { value: 'byok', label: 'This browser', title: 'Only the service and key set up below' },
                 { value: 'off', label: 'Off' },
               ]}
             />
           </Row>
-          <Row
-            label="Anthropic API key"
-            hint="Only used in “My key” / Auto mode when the server has no key. Stored in this browser only."
-          >
-            <input
-              type="password"
-              className="input"
-              placeholder="sk-ant-…"
-              value={s.apiKey}
-              onChange={(e) => s.set({ apiKey: e.target.value })}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <button
-              type="button"
-              className="btn btn-default btn-s"
-              onClick={() =>
-                void refreshClaudeStatus(true).then(() =>
-                  toast(
-                    useAI.getState().claude.state === 'ready' ? 'Claude is ready' : 'Claude not available',
-                    useAI.getState().claude.state === 'ready' ? 'success' : 'error',
-                  ),
-                )
-              }
-            >
-              Test
-            </button>
-          </Row>
-          <Row label="Model">
-            <select className="select" value={s.model} onChange={(e) => s.set({ model: e.target.value })}>
-              {MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </Row>
-          <Row label="Thinking depth" hint="Deeper = smarter but slower">
-            <Segmented<Effort>
-              value={s.effort}
-              onChange={(effort) => s.set({ effort })}
-              options={[
-                { value: 'low', label: 'Fast' },
-                { value: 'medium', label: 'Balanced' },
-                { value: 'high', label: 'Deep' },
-              ]}
-            />
-          </Row>
+          <ProviderSetup />
+          {s.aiProvider === 'anthropic' && (
+            <Row label="Thinking depth" hint="Claude only. Deeper = smarter but slower">
+              <Segmented<Effort>
+                value={s.effort}
+                onChange={(effort) => s.set({ effort })}
+                options={[
+                  { value: 'low', label: 'Fast' },
+                  { value: 'medium', label: 'Balanced' },
+                  { value: 'high', label: 'Deep' },
+                ]}
+              />
+            </Row>
+          )}
           <Row
             label="Allow key shift in AI mixes"
             hint="Fix key clashes by shifting the incoming track ±2 semitones"

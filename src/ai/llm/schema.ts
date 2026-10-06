@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** Shared (browser + server) request/response contracts for the Claude DJ copilot. */
+/** Shared (browser + server) request/response contracts for the AI DJ copilot. */
 
 export const TECHNIQUE_IDS = [
   'bass-swap',

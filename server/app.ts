@@ -1,33 +1,46 @@
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { streamSSE } from 'hono/streaming';
-import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { describeError, runPicks, runSetPlan, streamChat } from '../src/ai/claude/core';
-import { DEFAULT_MODEL_ID, MODELS } from '../src/ai/claude/models';
+import { createBackend, type BackendConfig } from '../src/ai/llm/backend';
+import { describeError } from '../src/ai/llm/errors';
+import { runPicks, runSetPlan, streamChat } from '../src/ai/llm/core';
+import { CLAUDE_MODELS, isProviderId, providerInfo, type ProviderId } from '../src/ai/llm/providers';
 import {
   AiOptionsSchema,
   ChatRequestSchema,
   PicksRequestSchema,
   SetPlanRequestSchema,
-} from '../src/ai/claude/schema';
+} from '../src/ai/llm/schema';
 
 /**
- * MixMind API. The Anthropic key never leaves the server: the browser sends DJ
- * context (decks, library summary) and gets suggestions back.
+ * MixMind API. AI keys never leave the server: the browser sends DJ context (decks, library
+ * summary) and gets suggestions back. The provider comes from the environment – any of the
+ * free ones (Gemini, Groq, OpenRouter, a local Ollama) or Claude.
  */
 
-const serverModel = () => {
-  const m = process.env.MIXMIND_AI_MODEL;
-  return MODELS.some((x) => x.id === m) ? (m as string) : DEFAULT_MODEL_ID;
+const KEY_VARS: Partial<Record<ProviderId, string>> = {
+  gemini: 'GEMINI_API_KEY',
+  groq: 'GROQ_API_KEY',
+  openrouter: 'OPENROUTER_API_KEY',
+  anthropic: 'ANTHROPIC_API_KEY',
 };
 
-let client: Anthropic | null = null;
-const anthropic = (): Anthropic => {
-  if (!client) client = new Anthropic();
-  return client;
-};
-const hasKey = () => Boolean(process.env.ANTHROPIC_API_KEY);
+/** AI_PROVIDER if set, otherwise the first provider whose key is present. */
+export function serverConfig(env: Record<string, string | undefined> = process.env): BackendConfig | null {
+  const chosen = env.AI_PROVIDER?.trim().toLowerCase();
+  let id: ProviderId | undefined;
+  if (chosen) id = isProviderId(chosen) ? chosen : undefined;
+  else id = (Object.keys(KEY_VARS) as ProviderId[]).find((p) => env[KEY_VARS[p]!]);
+  if (!id) return null;
+  const p = providerInfo(id);
+  const apiKey = (KEY_VARS[id] && env[KEY_VARS[id]!]) || env.AI_API_KEY || '';
+  const baseUrl = env.AI_BASE_URL || p.baseUrl;
+  if ((p.needsKey && !apiKey) || (p.kind === 'openai' && !baseUrl)) return null;
+  const model = env.AI_MODEL || p.defaultModel;
+  if (!model) return null;
+  return { provider: id, apiKey, baseUrl, model };
+}
 
 // ---- tiny in-memory rate limiter (per IP, sliding window)
 const WINDOW_MS = 5 * 60 * 1000;
@@ -49,26 +62,30 @@ function clientIp(c: Context): string {
   return incoming?.socket?.remoteAddress ?? 'local';
 }
 
-function options(body: unknown) {
+/** The server's backend for one request; Claude callers may pick a model from the allow-list. */
+async function backendFor(cfg: BackendConfig, body: unknown) {
   const parsed = AiOptionsSchema.safeParse((body as { options?: unknown })?.options ?? {});
   const o = parsed.success ? parsed.data : {};
-  // Only allow models from the allow-list; default to the server's choice.
-  return { model: MODELS.some((m) => m.id === o.model) ? o.model : serverModel(), effort: o.effort ?? 'low' };
+  const model =
+    cfg.provider === 'anthropic' && CLAUDE_MODELS.some((m) => m.id === o.model) ? o.model : cfg.model;
+  return createBackend({ ...cfg, model, effort: o.effort ?? 'low' });
 }
 
 export const app = new Hono().basePath('/api');
 
 app.use('*', bodyLimit({ maxSize: 512 * 1024, onError: (c) => c.json({ error: 'Request too large' }, 413) }));
 
-app.get('/health', (c) =>
-  c.json({ ok: true, ai: hasKey(), model: serverModel(), models: MODELS.map((m) => m.id) }),
-);
+app.get('/health', (c) => {
+  const cfg = serverConfig();
+  return c.json({ ok: true, ai: Boolean(cfg), provider: cfg?.provider ?? null, model: cfg?.model ?? null });
+});
 
 async function guarded<T extends z.ZodTypeAny>(
   c: Context,
   schema: T,
-): Promise<{ data: z.infer<T>; raw: unknown } | Response> {
-  if (!hasKey()) return c.json({ error: 'The server has no ANTHROPIC_API_KEY configured.' }, 503);
+): Promise<{ data: z.infer<T>; raw: unknown; cfg: BackendConfig } | Response> {
+  const cfg = serverConfig();
+  if (!cfg) return c.json({ error: 'The server has no AI key configured.' }, 503);
   if (rateLimited(clientIp(c))) return c.json({ error: 'Too many AI requests – slow down a little.' }, 429);
   let raw: unknown;
   try {
@@ -79,14 +96,14 @@ async function guarded<T extends z.ZodTypeAny>(
   const parsed = schema.safeParse(raw);
   if (!parsed.success)
     return c.json({ error: 'Invalid request', issues: parsed.error.issues.slice(0, 5) }, 400);
-  return { data: parsed.data, raw };
+  return { data: parsed.data, raw, cfg };
 }
 
 app.post('/ai/picks', async (c) => {
   const g = await guarded(c, PicksRequestSchema);
   if (g instanceof Response) return g;
   try {
-    return c.json(await runPicks(anthropic(), g.data, options(g.raw)));
+    return c.json(await runPicks(await backendFor(g.cfg, g.raw), g.data));
   } catch (err) {
     const e = describeError(err);
     return c.json({ error: e.message }, e.status as 400);
@@ -97,7 +114,7 @@ app.post('/ai/setplan', async (c) => {
   const g = await guarded(c, SetPlanRequestSchema);
   if (g instanceof Response) return g;
   try {
-    return c.json(await runSetPlan(anthropic(), g.data, options(g.raw)));
+    return c.json(await runSetPlan(await backendFor(g.cfg, g.raw), g.data));
   } catch (err) {
     const e = describeError(err);
     return c.json({ error: e.message }, e.status as 400);
@@ -107,15 +124,13 @@ app.post('/ai/setplan', async (c) => {
 app.post('/ai/chat', async (c) => {
   const g = await guarded(c, ChatRequestSchema);
   if (g instanceof Response) return g;
-  const opts = options(g.raw);
   return streamSSE(c, async (stream) => {
     const abort = new AbortController();
     stream.onAbort(() => abort.abort());
     try {
       await streamChat(
-        anthropic(),
+        await backendFor(g.cfg, g.raw),
         g.data,
-        opts,
         (delta) => void stream.writeSSE({ data: JSON.stringify({ type: 'text', text: delta }) }),
         abort.signal,
       );

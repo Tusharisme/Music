@@ -2,19 +2,19 @@ import { useAI, type ChatMessage } from '../state/ai';
 import { useLibrary } from '../state/library';
 import { useDecks } from '../state/decks';
 import { useUI } from '../state/ui';
-import { askPicks, chat, checkClaude, planSet } from './claude/client';
-import { buildContext, summarizeTrack } from './claude/context';
-import type { TrackSummary } from './claude/schema';
+import { askPicks, chat, checkCopilot, planSet } from './llm/client';
+import { buildContext, summarizeTrack } from './llm/context';
+import type { TrackSummary } from './llm/schema';
 
-/** UI-facing actions for the Claude copilot (status, picks, chat, set planner). */
+/** UI-facing actions for the AI copilot (status, picks, chat, set planner). */
 
-export async function refreshClaudeStatus(force = false): Promise<void> {
-  useAI.getState().patch({ claude: { state: 'checking', via: null } });
-  useAI.getState().patch({ claude: await checkClaude(force) });
+export async function refreshCopilotStatus(force = false): Promise<void> {
+  if (force) useAI.getState().patch({ copilot: { state: 'checking', via: null } });
+  useAI.getState().patch({ copilot: await checkCopilot(force) });
 }
 
 function via(): 'server' | 'byok' | null {
-  const c = useAI.getState().claude;
+  const c = useAI.getState().copilot;
   return c.state === 'ready' ? c.via : null;
 }
 
@@ -30,7 +30,10 @@ function replaceLast(msg: ChatMessage): void {
 
 export async function askForPicks(request?: string, discover = true): Promise<void> {
   const v = via();
-  if (!v) return useUI.getState().toast(useAI.getState().claude.reason ?? 'Claude is not set up.', 'error');
+  if (!v)
+    return useUI
+      .getState()
+      .toast(useAI.getState().copilot.reason ?? 'The AI copilot is not set up.', 'error');
   const ai = useAI.getState();
   if (ai.picksBusy) return;
   const ctx = buildContext();
@@ -57,7 +60,10 @@ let chatAbort: AbortController | null = null;
 
 export async function sendChat(text: string): Promise<void> {
   const v = via();
-  if (!v) return useUI.getState().toast(useAI.getState().claude.reason ?? 'Claude is not set up.', 'error');
+  if (!v)
+    return useUI
+      .getState()
+      .toast(useAI.getState().copilot.reason ?? 'The AI copilot is not set up.', 'error');
   if (!text.trim() || useAI.getState().chatBusy) return;
   push({ role: 'user', text: text.trim() });
   const history = useAI
@@ -103,7 +109,10 @@ export function stopChat(): void {
 
 export async function buildSetPlan(durationMin: number, vibe: string): Promise<void> {
   const v = via();
-  if (!v) return useUI.getState().toast(useAI.getState().claude.reason ?? 'Claude is not set up.', 'error');
+  if (!v)
+    return useUI
+      .getState()
+      .toast(useAI.getState().copilot.reason ?? 'The AI copilot is not set up.', 'error');
   const tracks = Object.values(useLibrary.getState().tracks);
   const library = tracks
     .map(summarizeTrack)

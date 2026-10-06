@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import Anthropic from '@anthropic-ai/sdk';
-import { runPicks, runSetPlan, streamChat, describeError } from './core';
+import { runPicks, runSetPlan, streamChat } from './core';
+import { anthropicBackend } from './anthropic';
+import { describeError } from './errors';
+import type { BackendConfig } from './backend';
 import type { DjContext } from './schema';
 
 const track = (id: string, title: string) => ({
@@ -55,7 +57,7 @@ interface Captured {
   body: Record<string, unknown>;
 }
 
-function mockClient(respond: (body: Record<string, unknown>) => Response) {
+function mockClaude(respond: (body: Record<string, unknown>) => Response) {
   const calls: Captured[] = [];
   const fetchImpl = async (url: string | URL | Request, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
@@ -64,8 +66,14 @@ function mockClient(respond: (body: Record<string, unknown>) => Response) {
     calls.push({ url: String(url), headers, body });
     return respond(body);
   };
-  const client = new Anthropic({ apiKey: 'test-key', fetch: fetchImpl as typeof fetch, maxRetries: 0 });
-  return { client, calls };
+  const backend = (opts: Partial<BackendConfig> = {}) =>
+    anthropicBackend({
+      provider: 'anthropic',
+      apiKey: 'test-key',
+      fetch: fetchImpl as typeof fetch,
+      ...opts,
+    });
+  return { backend, calls };
 }
 
 const message = (text: string, stop = 'end_turn') =>
@@ -83,7 +91,7 @@ const message = (text: string, stop = 'end_turn') =>
     { status: 200, headers: { 'content-type': 'application/json' } },
   );
 
-describe('Claude core', () => {
+describe('Claude backend', () => {
   it('requests structured picks with refusal fallbacks and filters unknown ids', async () => {
     const out = {
       headline: 'Lift it with Bravo',
@@ -94,12 +102,11 @@ describe('Claude core', () => {
       ],
       discover: [{ title: 'Song', artist: 'Someone', why: 'fits', bpm: null, key: null, mixTip: 'blend' }],
     };
-    const { client, calls } = mockClient(() => message(JSON.stringify(out)));
-    const res = await runPicks(
-      client,
-      { context, discover: true },
-      { model: 'claude-opus-5-5', effort: 'low' },
-    );
+    const { backend, calls } = mockClaude(() => message(JSON.stringify(out)));
+    const res = await runPicks(backend({ model: 'claude-opus-5-5', effort: 'low' }), {
+      context,
+      discover: true,
+    });
     expect(res.picks.map((p) => p.trackId)).toEqual(['b']);
     expect(res.discover).toHaveLength(1);
 
@@ -117,7 +124,7 @@ describe('Claude core', () => {
   });
 
   it('omits effort and fallbacks for Haiku', async () => {
-    const { client, calls } = mockClient(() =>
+    const { backend, calls } = mockClaude(() =>
       message(
         JSON.stringify({
           title: 'Set',
@@ -126,11 +133,11 @@ describe('Claude core', () => {
         }),
       ),
     );
-    const plan = await runSetPlan(
-      client,
-      { library: context.library, durationMin: 30, vibe: 'warm up' },
-      { model: 'claude-haiku-4-5' },
-    );
+    const plan = await runSetPlan(backend({ model: 'claude-haiku-4-5' }), {
+      library: context.library,
+      durationMin: 30,
+      vibe: 'warm up',
+    });
     expect(plan.items[0].trackId).toBe('c');
     expect(calls[0].body.fallbacks).toBeUndefined();
     expect((calls[0].body.output_config as Record<string, unknown>).effort).toBeUndefined();
@@ -138,8 +145,8 @@ describe('Claude core', () => {
   });
 
   it('surfaces refusals as errors', async () => {
-    const { client } = mockClient(() => message('{}', 'refusal'));
-    await expect(runPicks(client, { context, discover: false }, {})).rejects.toThrow(/declined/);
+    const { backend } = mockClaude(() => message('{}', 'refusal'));
+    await expect(runPicks(backend(), { context, discover: false })).rejects.toThrow(/declined/);
   });
 
   it('streams chat text and merges consecutive turns', async () => {
@@ -170,12 +177,12 @@ describe('Claude core', () => {
     ]
       .map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`)
       .join('');
-    const { client, calls } = mockClient(
+    const { backend, calls } = mockClaude(
       () => new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
     );
     const deltas: string[] = [];
     const text = await streamChat(
-      client,
+      backend({ model: 'claude-sonnet-5-5', effort: 'medium' }),
       {
         context,
         messages: [
@@ -184,7 +191,6 @@ describe('Claude core', () => {
           { role: 'user', text: 'something deeper' },
         ],
       },
-      { model: 'claude-sonnet-5-5', effort: 'medium' },
       (d) => deltas.push(d),
     );
     expect(text).toBe('Play Bravo.');
@@ -197,7 +203,7 @@ describe('Claude core', () => {
   });
 
   it('maps API errors to friendly messages', async () => {
-    const { client } = mockClient(
+    const { backend } = mockClaude(
       () =>
         new Response(
           JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'bad key' } }),
@@ -205,7 +211,7 @@ describe('Claude core', () => {
         ),
     );
     try {
-      await runPicks(client, { context, discover: false }, {});
+      await runPicks(backend(), { context, discover: false });
       expect.unreachable();
     } catch (err) {
       expect(describeError(err)).toEqual({ message: 'Invalid Anthropic API key.', status: 401 });

@@ -4,6 +4,7 @@ import type { CrossfaderCurve } from '../audio/curves';
 import type { KeyNotation } from '../music/keys';
 import type { MixStyle, Vibe } from '../ai/recommender';
 import type { SyncMode } from '../audio/protocol';
+import { DEFAULT_PROVIDER, isProviderId, type ProviderId } from '../ai/llm/providers';
 
 export type AiMode = 'auto' | 'server' | 'byok' | 'off';
 export type Effort = 'low' | 'medium' | 'high';
@@ -33,8 +34,13 @@ export interface SettingsState {
   bpmMax: number;
   trustTags: boolean;
   aiMode: AiMode;
-  apiKey: string;
-  model: string;
+  /** Which AI service the copilot uses from this browser. */
+  aiProvider: ProviderId;
+  /** Keys, models and addresses per provider, so switching keeps each one's setup. */
+  aiKeys: Partial<Record<ProviderId, string>>;
+  aiModels: Partial<Record<ProviderId, string>>;
+  aiBaseUrls: Partial<Record<ProviderId, string>>;
+  /** Claude only. */
   effort: Effort;
   mixStyle: MixStyle;
   vibe: Vibe;
@@ -45,7 +51,22 @@ export interface SettingsState {
   set: (patch: Partial<Omit<SettingsState, 'set'>>) => void;
 }
 
-export const DEFAULT_MODEL = 'claude-opus-5-5';
+/** Upgrade settings saved by older versions (v1 only knew Claude). */
+export function migrateSettings(persisted: unknown, version: number): Record<string, unknown> {
+  const s = { ...((persisted ?? {}) as Record<string, unknown>) };
+  if (version < 2) {
+    // Keep a saved Anthropic key and model under the new per-provider settings.
+    const key = typeof s.apiKey === 'string' ? s.apiKey.trim() : '';
+    const model = typeof s.model === 'string' ? s.model : '';
+    s.aiKeys = key ? { anthropic: key } : {};
+    s.aiModels = model ? { anthropic: model } : {};
+    s.aiProvider = key ? 'anthropic' : DEFAULT_PROVIDER;
+    delete s.apiKey;
+    delete s.model;
+  }
+  if (!isProviderId(s.aiProvider)) s.aiProvider = DEFAULT_PROVIDER;
+  return s;
+}
 
 export const useSettings = create<SettingsState>()(
   persist(
@@ -68,8 +89,10 @@ export const useSettings = create<SettingsState>()(
       bpmMax: 180,
       trustTags: true,
       aiMode: 'auto',
-      apiKey: '',
-      model: DEFAULT_MODEL,
+      aiProvider: DEFAULT_PROVIDER,
+      aiKeys: {},
+      aiModels: {},
+      aiBaseUrls: {},
       effort: 'low',
       mixStyle: 'balanced',
       vibe: 'auto',
@@ -81,8 +104,9 @@ export const useSettings = create<SettingsState>()(
     }),
     {
       name: 'mixmind-settings',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
+      migrate: (persisted, version) => migrateSettings(persisted, version) as unknown as SettingsState,
     },
   ),
 );

@@ -75,7 +75,7 @@ export function AIPanel() {
   const when = useSettings((s) => s.mixWhen);
   const set = useSettings((s) => s.set);
   const autoDjOn = useAI((s) => s.autoDj);
-  const claude = useAI((s) => s.claude);
+  const copilot = useAI((s) => s.copilot);
   return (
     <div className="ai-panel">
       <div className="ai-head">
@@ -100,7 +100,7 @@ export function AIPanel() {
             className={tab === 'ask' ? 'is-on' : ''}
             onClick={() => setTab('ask')}
           >
-            Ask Claude {claude.state === 'ready' ? <span className="dot is-good" /> : null}
+            Ask AI {copilot.state === 'ready' ? <span className="dot is-good" /> : null}
           </button>
           <button
             type="button"

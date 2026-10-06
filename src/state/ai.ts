@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Suggestion } from '../ai/recommender';
 import type { TransitionPlan } from '../ai/transitions';
+import type { ProviderId } from '../ai/llm/providers';
 
 export type MixPhase = 'idle' | 'preparing' | 'armed' | 'running';
 
@@ -20,18 +21,18 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
   /** Structured picks attached to an assistant turn. */
-  picks?: ClaudePicks;
+  picks?: CopilotPicks;
   error?: boolean;
 }
 
-export interface ClaudePick {
+export interface CopilotPick {
   trackId: string;
   why: string;
   technique?: string;
   tip?: string;
 }
 
-export interface ClaudeDiscovery {
+export interface CopilotDiscovery {
   title: string;
   artist: string;
   why: string;
@@ -40,10 +41,10 @@ export interface ClaudeDiscovery {
   mixTip?: string;
 }
 
-export interface ClaudePicks {
+export interface CopilotPicks {
   headline: string;
-  picks: ClaudePick[];
-  discover: ClaudeDiscovery[];
+  picks: CopilotPick[];
+  discover: CopilotDiscovery[];
 }
 
 export interface SetPlanItem {
@@ -58,9 +59,11 @@ export interface SetPlan {
   items: SetPlanItem[];
 }
 
-export interface ClaudeStatus {
+/** Whether (and how) the language-model copilot can be reached. */
+export interface CopilotStatus {
   state: 'checking' | 'ready' | 'unavailable';
   via: 'server' | 'byok' | null;
+  provider?: ProviderId;
   model?: string;
   reason?: string;
 }
@@ -71,7 +74,7 @@ interface AIState {
   mix: MixStatus;
   autoDj: boolean;
   queue: string[];
-  claude: ClaudeStatus;
+  copilot: CopilotStatus;
   chat: ChatMessage[];
   chatBusy: boolean;
   picksBusy: boolean;
@@ -97,7 +100,7 @@ export const useAI = create<AIState>()((set, get) => ({
   mix: idleMix(),
   autoDj: false,
   queue: [],
-  claude: { state: 'checking', via: null },
+  copilot: { state: 'checking', via: null },
   chat: [],
   chatBusy: false,
   picksBusy: false,

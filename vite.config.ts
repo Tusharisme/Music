@@ -32,7 +32,17 @@ function apiDevPlugin(): Plugin {
 export default defineConfig(({ mode }) => {
   // Expose server-only secrets from .env to the dev API without leaking them to the client bundle.
   const env = loadEnv(mode, process.cwd(), '');
-  for (const key of ['ANTHROPIC_API_KEY', 'MIXMIND_AI_MODEL']) {
+  for (const key of [
+    'AI_PROVIDER',
+    'AI_MODEL',
+    'AI_API_KEY',
+    'AI_BASE_URL',
+    'GEMINI_API_KEY',
+    'GROQ_API_KEY',
+    'OPENROUTER_API_KEY',
+    'ANTHROPIC_API_KEY',
+    'MIXMIND_RATE_LIMIT',
+  ]) {
     if (env[key] && !process.env[key]) process.env[key] = env[key];
   }
 

@@ -1,4 +1,11 @@
-import type { ChatRequest, DjContext, PicksRequest, SetPlanRequest, TrackSummary } from './schema';
+import {
+  TECHNIQUE_IDS,
+  type ChatRequest,
+  type DjContext,
+  type PicksRequest,
+  type SetPlanRequest,
+  type TrackSummary,
+} from './schema';
 
 export const SYSTEM_PROMPT = `You are the AI DJ copilot inside MixMind, a two-deck DJ mixer that runs in the browser. You are an expert club DJ and music curator: you know harmonic mixing on the Camelot wheel, phrasing in 8/16/32-bar blocks, EQ-based blending, energy management, and how to read a dancefloor. The person you are helping is mixing live right now.
 
@@ -72,3 +79,25 @@ export function setPlanPrompt(req: SetPlanRequest): string {
   return `Build a DJ set of about ${req.durationMin} minutes from the library above. Vibe/brief: "${req.vibe}". ${start}
 Order the tracks for smooth harmonic and tempo flow with a deliberate energy arc, use each track at most once, and pick the transition technique into each track. Assume roughly 70% of each track is played.`;
 }
+
+const TECHNIQUES = TECHNIQUE_IDS.join(' | ');
+
+/** Answer formats spelled out for models that can't be given a JSON schema. */
+export const PICKS_SHAPE = `Reply with only a JSON object (no other text) in exactly this shape:
+{
+  "headline": "one short, punchy line",
+  "picks": [
+    { "trackId": "<exact id from the library>", "why": "why it works next (key, tempo, energy)", "technique": "<one of: ${TECHNIQUES}>", "tip": "one concrete mixing tip" }
+  ],
+  "discover": [
+    { "title": "song title", "artist": "artist", "why": "why it fits", "bpm": 124, "key": "8A", "mixTip": "how to mix into it" }
+  ]
+}
+"picks" has at most 4 items, best first. Use null for an unknown bpm or key.`;
+
+export const SET_PLAN_SHAPE = `Reply with only a JSON object (no other text) in exactly this shape:
+{
+  "title": "a short name for the set",
+  "arc": "one or two sentences on the energy arc",
+  "items": [ { "trackId": "<exact id from the library>", "note": "its role / how to mix into it", "technique": "<one of: ${TECHNIQUES}>" } ]
+}`;
