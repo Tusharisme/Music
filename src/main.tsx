@@ -56,6 +56,17 @@ const unlock = () => {
 window.addEventListener('pointerdown', unlock, { capture: true });
 window.addEventListener('keydown', unlock, { capture: true });
 
+// ---- two hands on the controls: a pinch that starts on the decks or mixer must not zoom the page.
+// CSS touch-action covers most browsers; Safari also needs its own gesture events cancelled.
+document.addEventListener(
+  'gesturestart',
+  (e) => {
+    if ((e.target as Element | null)?.closest?.('.mobile-decks, .mixer, .console, .wave-stack'))
+      e.preventDefault();
+  },
+  { passive: false },
+);
+
 // ---- keep the screen awake while music is playing (phones/tablets)
 let wakeLock: { release: () => Promise<void> } | null = null;
 useDecks.subscribe(async (s) => {

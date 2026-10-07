@@ -55,10 +55,15 @@ export const DjContextSchema = z.object({
 });
 export type DjContext = z.infer<typeof DjContextSchema>;
 
+/** Music scenes the copilot can focus its real-song suggestions on. */
+export const SCENES = ['bollywood'] as const;
+export type Scene = (typeof SCENES)[number];
+
 export const PicksRequestSchema = z.object({
   context: DjContextSchema,
   request: str(600).optional(),
   discover: z.boolean(),
+  scene: z.enum(SCENES).optional(),
 });
 export type PicksRequest = z.infer<typeof PicksRequestSchema>;
 
@@ -107,6 +112,8 @@ export const PicksOutputSchema = z.object({
       z.object({
         title: z.string(),
         artist: z.string(),
+        album: z.string().nullable().describe('The film (for film songs) or album it is from, else null.'),
+        year: z.number().nullable().describe('Release year if known, else null.'),
         why: z.string().describe('Why it would mix well after the current track.'),
         bpm: z.number().nullable().describe('Approximate BPM if known, else null.'),
         key: z.string().nullable().describe('Camelot key if known, else null.'),

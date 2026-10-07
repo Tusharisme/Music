@@ -4,7 +4,7 @@ import { useDecks } from '../state/decks';
 import { useUI } from '../state/ui';
 import { askPicks, chat, checkCopilot, planSet, type Via } from './llm/client';
 import { buildContext, summarizeTrack } from './llm/context';
-import type { TrackSummary } from './llm/schema';
+import type { Scene, TrackSummary } from './llm/schema';
 
 /** UI-facing actions for the AI copilot (status, picks, chat, set planner). */
 
@@ -28,7 +28,7 @@ function replaceLast(msg: ChatMessage): void {
   ai.patch({ chat: [...ai.chat.slice(0, -1), msg] });
 }
 
-export async function askForPicks(request?: string, discover = true): Promise<void> {
+export async function askForPicks(request?: string, discover = true, scene?: Scene): Promise<void> {
   const v = via();
   if (!v)
     return useUI
@@ -43,11 +43,11 @@ export async function askForPicks(request?: string, discover = true): Promise<vo
   push({ role: 'user', text: request?.trim() || 'What should I play next?' });
   push({ role: 'assistant', text: '' });
   try {
-    const picks = await askPicks(v, { context: ctx, request, discover });
+    const picks = await askPicks(v, { context: ctx, request, discover, scene });
     replaceLast({
       role: 'assistant',
       text: picks.headline,
-      picks: { headline: picks.headline, picks: picks.picks, discover: picks.discover },
+      picks: { headline: picks.headline, picks: picks.picks, discover: picks.discover, scene },
     });
   } catch (err) {
     replaceLast({ role: 'assistant', text: (err as Error).message, error: true });

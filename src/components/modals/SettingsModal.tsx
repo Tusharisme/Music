@@ -12,7 +12,7 @@ import { enableMidi, midiInputs, midiSupported } from '../../midi/midi';
 import { Segmented, Switch } from '../controls/Btn';
 import { Modal } from './Modal';
 import type { KeyNotation } from '../../music/keys';
-import type { CrossfaderCurve } from '../../audio/curves';
+import type { CrossfaderCurve, CrossfaderMode } from '../../audio/curves';
 import type { SyncMode } from '../../audio/protocol';
 
 function Row({ label, hint, children }: { label: ReactNode; hint?: ReactNode; children: ReactNode }) {
@@ -147,6 +147,17 @@ export function SettingsModal() {
                 { value: 'smooth', label: 'Smooth' },
                 { value: 'dipped', label: 'Linear' },
                 { value: 'sharp', label: 'Cut' },
+              ]}
+            />
+          </Row>
+          <Row label="Smart crossfader" hint="One slide also swaps the basses or filters the deck you leave">
+            <Segmented<CrossfaderMode>
+              value={s.crossfaderMode}
+              onChange={(crossfaderMode) => s.set({ crossfaderMode })}
+              options={[
+                { value: 'off', label: 'Off' },
+                { value: 'bass', label: 'Bass swap' },
+                { value: 'filter', label: 'Filter' },
               ]}
             />
           </Row>

@@ -16,6 +16,8 @@ export interface KnobProps {
   midi?: string;
   disabled?: boolean;
   title?: string;
+  /** Where the sound actually is when something else moves it too (the smart crossfader). */
+  ghost?: number;
 }
 
 const START = -135;
@@ -51,6 +53,7 @@ export function Knob({
   midi,
   disabled,
   title,
+  ghost,
 }: KnobProps) {
   const drag = useRef<{ x: number; y: number; v: number; id: number } | null>(null);
   const lastTap = useRef(0);
@@ -119,10 +122,12 @@ export function Knob({
   const r = c - 4;
   const from = bipolar ? START + SWEEP / 2 : START;
   const display = format ? format(value) : `${Math.round(t * 100)}%`;
+  const pulled = ghost !== undefined && Math.abs(ghost - value) > range * 0.01;
+  const ghostAngle = pulled ? START + ((ghost - min) / range) * SWEEP : angle;
 
   return (
     <div
-      className={`knob ${active ? 'is-active' : ''} ${disabled ? 'is-disabled' : ''} ${className}`}
+      className={`knob ${active ? 'is-active' : ''} ${disabled ? 'is-disabled' : ''} ${pulled ? 'is-pulled' : ''} ${className}`}
       data-midi={midi}
     >
       <div
@@ -134,7 +139,12 @@ export function Knob({
         aria-valuemax={max}
         aria-valuenow={Math.round(value * 100) / 100}
         aria-valuetext={display}
-        title={title ?? (label ? `${label}: ${display} (double-click to reset)` : undefined)}
+        title={
+          title ??
+          (label
+            ? `${label}: ${display}${pulled ? ` (the crossfader takes it to ${format ? format(ghost) : `${Math.round(((ghost - min) / range) * 100)}%`})` : ''} – double-click to reset`
+            : undefined)
+        }
         style={{ width: size, height: size }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -146,6 +156,20 @@ export function Knob({
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
           <path d={arc(c, c, r, START, START + SWEEP)} className="knob-track" />
           <path d={arc(c, c, r, Math.min(from, angle), Math.max(from, angle))} className="knob-value" />
+          {pulled && (
+            <>
+              <path
+                d={arc(c, c, r, Math.min(angle, ghostAngle), Math.max(angle, ghostAngle))}
+                className="knob-ghost-arc"
+              />
+              <circle
+                cx={polar(c, c, r, ghostAngle)[0]}
+                cy={polar(c, c, r, ghostAngle)[1]}
+                r={2.6}
+                className="knob-ghost"
+              />
+            </>
+          )}
           <circle cx={c} cy={c} r={r - 5} className="knob-cap" />
           <line
             x1={polar(c, c, r - 14, angle)[0]}

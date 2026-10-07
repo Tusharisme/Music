@@ -637,6 +637,21 @@
   fill: #242b5a;
 }
 
+/* The smart crossfader is moving the sound away from where the knob is set. */
+.knob-ghost-arc {
+  fill: none;
+  stroke: var(--warn);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 2 3;
+  opacity: 0.9;
+}
+
+.knob-ghost {
+  fill: var(--warn);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--warn) 70%, transparent));
+}
+
 .knob-label {
   font-size: 9.5px;
   font-weight: 750;
@@ -1234,29 +1249,6 @@
   height: 24px;
 }
 
-.tempo.is-h {
-  width: 100%;
-  align-items: stretch;
-}
-
-.tempo.is-h .tempo-top {
-  flex-direction: row;
-  justify-content: space-between;
-}
-
-.tempo.is-h .fader.is-h .fader-track {
-  height: 28px;
-}
-
-.tempo.is-h .tempo-btns {
-  justify-content: center;
-}
-
-.tempo.is-h .tempo-btns .btn {
-  width: 34px;
-  height: 28px;
-}
-
 /* ---- pads, loop & key rows */
 
 .pads-wrap {
@@ -1627,8 +1619,25 @@
 
 .xfader {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 8px;
+}
+
+/* The crossfader keeps a usable width; its buttons move to their own line when space is short. */
+.xf-main {
+  flex: 1 1 200px;
+  display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+
+.xf-chips {
+  display: flex;
+  gap: 6px;
+  flex: none;
 }
 
 .xfader .fader {
@@ -1657,10 +1666,21 @@
   --fc: #e2e8f0;
 }
 
-.xf-curve {
+.xf-curve,
+.xf-mode {
   height: 24px;
   padding: 0 8px;
   font-size: 10px;
+}
+
+.xf-mode {
+  gap: 4px;
+}
+
+.xf-mode.is-on {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
 }
 
 /* ============================================================ key badge, energy, artwork */
@@ -2532,9 +2552,15 @@
   color: var(--text);
 }
 
+.disc-from {
+  font-size: 11.5px;
+  margin-top: -2px;
+}
+
 .disc-links {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   font-size: 11.5px;
 }
 
@@ -3279,8 +3305,13 @@ body.midi-learn .midi-target {
 
 .mdeck-row {
   display: flex;
-  gap: 10px;
-  align-items: center;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.mdeck-row > .jog {
+  align-self: center;
+  flex: none;
 }
 
 .mdeck-col {
@@ -3288,7 +3319,85 @@ body.midi-learn .midi-target {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.mdeck-knobs {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.fader.mdeck-vol {
+  flex: none;
+}
+
+.fader.mdeck-vol .fader-track {
+  flex: 1;
+  width: 38px;
+  height: auto;
+  min-height: 84px;
+}
+
+.fader.mdeck-vol .fader-cap {
+  width: 34px;
+  height: 16px;
+}
+
+.fader.mdeck-vol .fader-label {
+  font-size: 9.5px;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.tempo.is-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.tempo.is-inline .fader {
+  flex: 1;
+  min-width: 0;
+}
+
+.tempo.is-inline .fader-label {
+  display: none;
+}
+
+.tempo.is-inline .fader.is-h .fader-track {
+  height: 30px;
+}
+
+.tempo.is-inline .btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  flex: none;
+}
+
+.tempo.is-inline .chip {
+  height: 26px;
+  padding: 0 7px;
+  font-size: 10.5px;
+  flex: none;
+}
+
+.tempo.is-inline .tempo-val {
+  min-width: 58px;
+  justify-content: center;
+}
+
+/* A second finger landing between controls must not zoom the page mid-mix (scrolling still works). */
+.mobile-decks,
+.app.is-mobile .mixer,
+.console {
+  touch-action: pan-y;
 }
 
 .deck.is-mobile .pads .btn-pad {

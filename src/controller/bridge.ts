@@ -1,4 +1,5 @@
 import { engine } from '../audio/engine';
+import { smartChannel } from '../audio/curves';
 import { useMixer, type ChannelState } from '../state/mixer';
 import { useSettings } from '../state/settings';
 import { useDecks, deckState } from '../state/decks';
@@ -8,6 +9,23 @@ import { applyAutoGain, noteNowPlaying, refreshGrid } from './decks';
 import type { EngineEvent } from '../audio/protocol';
 
 const STRIP_KEYS: (keyof ChannelState)[] = ['trim', 'eqHigh', 'eqMid', 'eqLow', 'filter', 'fader', 'cue'];
+
+/** A channel's low EQ and filter with the crossfader's combo move (if any) on top of the knobs. */
+function smart(deck: number, c: ChannelState) {
+  const mode = automation.has(autoKey('x', 'xfader')) ? 'off' : useSettings.getState().crossfaderMode;
+  return smartChannel(mode, useMixer.getState().xfader, deck, c.eqLow, c.filter);
+}
+
+/** Re-apply the parts of both channels that follow the crossfader. */
+function applySmart(): void {
+  useMixer.getState().ch.forEach((c, d) => {
+    const strip = engine.strips[d];
+    if (!strip) return;
+    const v = smart(d, c);
+    if (!automation.has(autoKey(d, 'eqLow'))) strip.setEq('low', v.eqLow);
+    if (!automation.has(autoKey(d, 'filter'))) strip.setFilter(v.filter);
+  });
+}
 
 function applyChannel(deck: number, c: ChannelState, prev?: ChannelState): void {
   const strip = engine.strips[deck];
@@ -26,10 +44,10 @@ function applyChannel(deck: number, c: ChannelState, prev?: ChannelState): void 
         strip.setEq('mid', c.eqMid);
         break;
       case 'eqLow':
-        strip.setEq('low', c.eqLow);
+        strip.setEq('low', smart(deck, c).eqLow);
         break;
       case 'filter':
-        strip.setFilter(c.filter);
+        strip.setFilter(smart(deck, c).filter);
         break;
       case 'fader':
         strip.setFader(c.fader);
@@ -118,8 +136,9 @@ export function startBridge(): void {
   useMixer.subscribe(
     (s) => s.xfader,
     (x) => {
-      if (!automation.has(autoKey('x', 'xfader')))
-        engine.setCrossfader(x, useSettings.getState().crossfaderCurve);
+      if (automation.has(autoKey('x', 'xfader'))) return;
+      engine.setCrossfader(x, useSettings.getState().crossfaderCurve);
+      if (useSettings.getState().crossfaderMode !== 'off') applySmart();
     },
   );
   useMixer.subscribe(
@@ -137,6 +156,7 @@ export function startBridge(): void {
   useSettings.subscribe((s, p) => {
     if (s.crossfaderCurve !== p.crossfaderCurve)
       engine.setCrossfader(useMixer.getState().xfader, s.crossfaderCurve);
+    if (s.crossfaderMode !== p.crossfaderMode) applySmart();
     if (s.limiter !== p.limiter) engine.master?.setLimiter(s.limiter);
     if (s.splitCue !== p.splitCue) engine.master?.setSplitCue(s.splitCue);
     if (s.filterResonance !== p.filterResonance)

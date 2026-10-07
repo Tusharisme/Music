@@ -28,8 +28,8 @@ export function HelpModal() {
             </li>
             <li>
               Connect a language model in Settings → AI to chat with an AI DJ, plan whole sets and discover
-              new songs that would mix well. <b>Google Gemini</b>, <b>Groq</b>, <b>OpenRouter</b> and{' '}
-              <b>Ollama</b> work for free; Claude is supported too.
+              new songs that would mix well, Bollywood included. <b>Google Gemini</b>, <b>Groq</b>,{' '}
+              <b>OpenRouter</b> and <b>Ollama</b> work for free; Claude is supported too.
             </li>
           </ol>
         </section>
@@ -58,6 +58,29 @@ export function HelpModal() {
             <li>
               Keys are shown on the <b>Camelot wheel</b>: same number, ±1, or switching A↔B mixes
               harmonically.
+            </li>
+          </ul>
+        </section>
+        <section>
+          <h3>Doing several things at once</h3>
+          <ul>
+            <li>
+              <b>Touch screens</b>: use two or three fingers. Each finger works its own control, so you can
+              start a deck, ride its volume and cut the other deck's bass together. On a phone, the{' '}
+              <b>Decks</b> screen has each deck's Bass, Filter and Volume next to Play and Cue.
+            </li>
+            <li>
+              <b>Smart crossfader</b> (the ⚡ button by the crossfader): one slide also does a second move.{' '}
+              <b>Bass swap</b> trades the two basses as you pass the middle; <b>Filter</b> fades the deck
+              you're leaving out through a filter. An amber dot on a knob shows where the crossfader is taking
+              it.
+            </li>
+            <li>
+              <b>Mouse</b>: drag with the mouse while you hold keyboard shortcuts (for example hold{' '}
+              <kbd>Q</kbd> to preview a cue while you move a fader), or connect a MIDI controller.
+            </li>
+            <li>
+              <b>AI Mix</b> does the whole transition for you: EQ, filter, faders and effects on the beat.
             </li>
           </ul>
         </section>

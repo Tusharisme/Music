@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Suggestion } from '../ai/recommender';
 import type { TransitionPlan } from '../ai/transitions';
 import type { ProviderId } from '../ai/llm/providers';
+import type { Scene } from '../ai/llm/schema';
 
 export type MixPhase = 'idle' | 'preparing' | 'armed' | 'running';
 
@@ -35,6 +36,9 @@ export interface CopilotPick {
 export interface CopilotDiscovery {
   title: string;
   artist: string;
+  /** Film (for film songs) or album. */
+  album?: string | null;
+  year?: number | null;
   why: string;
   bpm?: number | null;
   key?: string | null;
@@ -45,6 +49,8 @@ export interface CopilotPicks {
   headline: string;
   picks: CopilotPick[];
   discover: CopilotDiscovery[];
+  /** The music scene the real-song suggestions were asked for. */
+  scene?: Scene;
 }
 
 export interface SetPlanItem {

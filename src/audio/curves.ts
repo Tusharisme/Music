@@ -36,6 +36,34 @@ export function crossfaderGains(x: number, curve: CrossfaderCurve): [number, num
   }
 }
 
+/** What the crossfader does besides changing the volume (a combo move from one control). */
+export type CrossfaderMode = 'off' | 'bass' | 'filter';
+
+/** How far the crossfader has moved away from a deck: 0 on its side or centred, 1 at the far end. */
+function awayFrom(deck: number, x: number): number {
+  return Math.max(0, Math.min(1, deck === 0 ? (x - 0.5) * 2 : (0.5 - x) * 2));
+}
+
+/**
+ * The low-EQ and filter knob values a channel actually gets from its knobs plus the crossfader.
+ * Bass swap: each deck loses its bass over the first fifth of the travel past the middle, so the
+ * basses trade places as you slide through the centre. Filter: the deck that's leaving is
+ * high-passed away (a low-pass the DJ set on purpose is left alone).
+ */
+export function smartChannel(
+  mode: CrossfaderMode,
+  x: number,
+  deck: number,
+  eqLow: number,
+  filter: number,
+): { eqLow: number; filter: number } {
+  const away = awayFrom(deck, x);
+  if (mode === 'bass') return { eqLow: eqLow * (1 - Math.min(1, away / 0.2)), filter };
+  if (mode === 'filter' && filter > -0.02)
+    return { eqLow, filter: Math.max(filter, 0.85 * Math.pow(away, 0.8)) };
+  return { eqLow, filter };
+}
+
 export interface FilterSetting {
   lpHz: number;
   hpHz: number;

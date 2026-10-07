@@ -1,31 +1,22 @@
 import { useMixer } from '../../state/mixer';
 import { useSettings } from '../../state/settings';
 import { useDecks } from '../../state/decks';
+import { useUI } from '../../state/ui';
 import { engine } from '../../audio/engine';
 import { Knob } from '../controls/Knob';
 import { Fader } from '../controls/Fader';
 import { Btn } from '../controls/Btn';
 import { VUMeter } from './VUMeter';
 import { Icon } from '../Icon';
-import { eqKnobToGain, gainToDb, trimKnobToDb, filterKnob } from '../../audio/curves';
-import type { CrossfaderCurve } from '../../audio/curves';
-
-const eqFmt = (v: number) => {
-  const g = eqKnobToGain(v);
-  return g <= 0 ? 'KILL' : `${gainToDb(g) >= 0 ? '+' : ''}${gainToDb(g).toFixed(1)} dB`;
-};
-const trimFmt = (v: number) => `${trimKnobToDb(v) >= 0 ? '+' : ''}${trimKnobToDb(v).toFixed(1)} dB`;
-const filterFmt = (v: number) => {
-  const f = filterKnob(v);
-  if (Math.abs(v) < 0.02) return 'OFF';
-  const hz = v < 0 ? f.lpHz : f.hpHz;
-  return `${v < 0 ? 'LP' : 'HP'} ${hz >= 1000 ? `${(hz / 1000).toFixed(1)}k` : Math.round(hz)}`;
-};
+import type { CrossfaderCurve, CrossfaderMode } from '../../audio/curves';
+import { useSmartChannel } from '../../hooks/useSmartChannel';
+import { eqFmt, filterFmt, trimFmt } from './format';
 
 function Channel({ deck }: { deck: number }) {
   const c = useMixer((s) => s.ch[deck]);
   const set = useMixer((s) => s.setChannel);
   const loaded = useDecks((s) => !!s.decks[deck].trackId);
+  const smart = useSmartChannel(deck);
   const m = `mixer.ch${deck}`;
   const letter = deck === 0 ? 'A' : 'B';
   return (
@@ -65,6 +56,7 @@ function Channel({ deck }: { deck: number }) {
         />
         <Knob
           value={c.eqLow}
+          ghost={smart.eqLow}
           onChange={(eqLow) => set(deck, { eqLow })}
           label="Low"
           size={34}
@@ -76,6 +68,7 @@ function Channel({ deck }: { deck: number }) {
         />
         <Knob
           value={c.filter}
+          ghost={smart.filter}
           onChange={(filter) => set(deck, { filter })}
           min={-1}
           max={1}
@@ -118,6 +111,43 @@ function Channel({ deck }: { deck: number }) {
   );
 }
 
+const MODES: { value: CrossfaderMode; label: string; toast: string }[] = [
+  { value: 'off', label: 'Off', toast: 'Smart crossfader off: it only changes the volume.' },
+  {
+    value: 'bass',
+    label: 'Bass swap',
+    toast: 'Smart crossfader: Bass swap. Slide through the middle and the two basses trade places.',
+  },
+  {
+    value: 'filter',
+    label: 'Filter',
+    toast: 'Smart crossfader: Filter. The deck you slide away from fades out through a filter.',
+  },
+];
+
+/** Picks the combo move the crossfader does on top of the volume. */
+function SmartChip() {
+  const mode = useSettings((s) => s.crossfaderMode);
+  const set = useSettings((s) => s.set);
+  const cur = MODES.find((m) => m.value === mode) ?? MODES[0];
+  return (
+    <button
+      type="button"
+      className={`chip xf-mode ${mode !== 'off' ? 'is-on' : ''}`}
+      title="Smart crossfader: one slide also swaps the bass or fades through a filter (tap to change)"
+      aria-label={`Smart crossfader: ${cur.label}`}
+      onClick={() => {
+        const next = MODES[(MODES.indexOf(cur) + 1) % MODES.length];
+        set({ crossfaderMode: next.value });
+        useUI.getState().toast(next.toast, 'info');
+      }}
+    >
+      <Icon name="bolt" size={11} />
+      {cur.label}
+    </button>
+  );
+}
+
 const CURVES: { value: CrossfaderCurve; label: string; title: string }[] = [
   { value: 'smooth', label: 'Smooth', title: 'Constant power – for long blends' },
   { value: 'dipped', label: 'Linear', title: 'Linear – a slight dip in the middle' },
@@ -132,29 +162,34 @@ export function Crossfader({ compact = false }: { compact?: boolean }) {
   const cur = CURVES.find((c) => c.value === curve) ?? CURVES[0];
   return (
     <div className={`xfader ${compact ? 'is-compact' : ''}`}>
-      <span className="xf-a">A</span>
-      <Fader
-        value={x}
-        onChange={(v) => setX(v)}
-        orientation="horizontal"
-        label="Crossfader"
-        defaultValue={0.5}
-        detent={0.5}
-        midi="mixer.xfader"
-        className="xfader-fader"
-        ticks={10}
-      />
-      <span className="xf-b">B</span>
-      {!compact && (
-        <button
-          type="button"
-          className="chip xf-curve"
-          title={`Crossfader curve: ${cur.title} (click to change)`}
-          onClick={() => setS({ crossfaderCurve: CURVES[(CURVES.indexOf(cur) + 1) % CURVES.length].value })}
-        >
-          {cur.label}
-        </button>
-      )}
+      <div className="xf-main">
+        <span className="xf-a">A</span>
+        <Fader
+          value={x}
+          onChange={(v) => setX(v)}
+          orientation="horizontal"
+          label="Crossfader"
+          defaultValue={0.5}
+          detent={0.5}
+          midi="mixer.xfader"
+          className="xfader-fader"
+          ticks={10}
+        />
+        <span className="xf-b">B</span>
+      </div>
+      <div className="xf-chips">
+        {!compact && (
+          <button
+            type="button"
+            className="chip xf-curve"
+            title={`Crossfader curve: ${cur.title} (click to change)`}
+            onClick={() => setS({ crossfaderCurve: CURVES[(CURVES.indexOf(cur) + 1) % CURVES.length].value })}
+          >
+            {cur.label}
+          </button>
+        )}
+        <SmartChip />
+      </div>
     </div>
   );
 }

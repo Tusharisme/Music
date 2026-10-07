@@ -11,7 +11,7 @@ import {
 import { normalizePicks, runPicks, runSetPlan, streamChat, toTechnique, trimLibrary } from './core';
 import { describeError } from './errors';
 import type { BackendConfig } from './backend';
-import type { DjContext, TrackSummary } from './schema';
+import { PicksRequestSchema, type DjContext, type TrackSummary } from './schema';
 
 const track = (id: string, title: string): TrackSummary => ({
   id,
@@ -355,6 +355,30 @@ describe('OpenAI-compatible backend', () => {
     expect(out.picks[0]).toEqual({ trackId: 'demo-alpha', why: 'r', technique: 'loop-roll', tip: '' });
     expect(out.headline).toBeTruthy();
     expect(() => normalizePicks({ picks: [] }, library, false)).toThrow(/no usable tracks/);
+  });
+
+  it('asks for Bollywood songs with their film and year, and never for lyrics', async () => {
+    const answer = JSON.stringify({
+      headline: 'Take it desi',
+      picks: [{ trackId: 'demo-bravo', why: 'Same key', technique: 'quick-cut', tip: 'Cut in on the hook' }],
+      discover: [
+        { title: 'Song A', artist: 'Singer', film: 'Film X', year: '2016', why: 'fits', bpm: 125, key: null },
+        { title: 'Song B', artist: 'Singer 2', album: '', year: 1850, why: 'old', bpm: null, key: null },
+      ],
+    });
+    const { calls, cfg } = fake(() => completion(answer));
+    const out = await runPicks(openAiBackend(cfg()), { context, discover: true, scene: 'bollywood' });
+    expect(out.discover[0]).toMatchObject({ title: 'Song A', album: 'Film X', year: 2016, bpm: 125 });
+    expect(out.discover[1]).toMatchObject({ album: null, year: null });
+
+    const msgs = calls[0].body.messages as { content: string }[];
+    const sent = msgs.map((m) => m.content).join('\n');
+    expect(sent).toContain('real Bollywood songs');
+    expect(sent).toContain('Never quote or paraphrase song lyrics');
+    expect(sent).toContain('"album"');
+
+    expect(PicksRequestSchema.safeParse({ context, discover: true, scene: 'bollywood' }).success).toBe(true);
+    expect(PicksRequestSchema.safeParse({ context, discover: true, scene: 'k-pop' }).success).toBe(false);
   });
 
   it('lists usable models per provider', async () => {

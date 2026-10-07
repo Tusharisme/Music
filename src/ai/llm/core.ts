@@ -90,6 +90,11 @@ function bpmOf(v: unknown): number | null {
   return Number.isFinite(n) && n > 40 && n < 300 ? n : null;
 }
 
+function yearOf(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? parseInt(v, 10) : NaN;
+  return Number.isInteger(n) && n >= 1900 && n <= new Date().getFullYear() + 1 ? n : null;
+}
+
 export function normalizePicks(raw: unknown, library: TrackSummary[], discover: boolean): PicksOutput {
   const o = isObj(raw) ? raw : {};
   const seen = new Set<string>();
@@ -111,6 +116,8 @@ export function normalizePicks(raw: unknown, library: TrackSummary[], discover: 
         .map((d) => ({
           title: text(d.title, 200),
           artist: text(d.artist, 200),
+          album: text(d.album ?? d.film ?? d.movie, 200) || null,
+          year: yearOf(d.year),
           why: text(d.why ?? d.reason),
           bpm: bpmOf(d.bpm),
           key: text(d.key, 8) || null,

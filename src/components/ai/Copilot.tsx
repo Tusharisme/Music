@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useAI, type CopilotPicks } from '../../state/ai';
+import { useAI, type CopilotDiscovery, type CopilotPicks } from '../../state/ai';
 import { useLibrary } from '../../state/library';
 import { useUI } from '../../state/ui';
 import { useDecks } from '../../state/decks';
@@ -16,9 +16,22 @@ import { ProviderSetup } from './ProviderSetup';
 import { providerInfo } from '../../ai/llm/providers';
 import { viaLabel } from '../../ai/llm/client';
 import { trackBpm, trackKey } from '../../ai/recommender';
+import type { Scene } from '../../ai/llm/schema';
 
-function searchLinks(title: string, artist: string) {
-  const q = encodeURIComponent(`${artist} ${title}`);
+const query = (...parts: (string | null | undefined)[]) =>
+  encodeURIComponent(parts.filter(Boolean).join(' '));
+
+/** Where to listen to (or buy) a suggested song. Film songs are easiest to find by title + film. */
+function searchLinks(d: CopilotDiscovery, scene?: Scene) {
+  if (scene === 'bollywood') {
+    const film = query(d.title, d.album ?? d.artist);
+    return [
+      { label: 'JioSaavn', href: `https://www.jiosaavn.com/search/song/${film}` },
+      { label: 'Spotify', href: `https://open.spotify.com/search/${query(d.title, d.artist)}` },
+      { label: 'YouTube', href: `https://www.youtube.com/results?search_query=${film}` },
+    ];
+  }
+  const q = query(d.artist, d.title);
   return [
     { label: 'YouTube', href: `https://www.youtube.com/results?search_query=${q}` },
     { label: 'Spotify', href: `https://open.spotify.com/search/${q}` },
@@ -83,7 +96,9 @@ function PicksView({ picks }: { picks: CopilotPicks }) {
       })}
       {picks.discover.length > 0 && (
         <div className="discover">
-          <span className="label">New music to dig for</span>
+          <span className="label">
+            {picks.scene === 'bollywood' ? 'Bollywood songs to mix in' : 'New music to dig for'}
+          </span>
           {picks.discover.map((d) => (
             <div key={`${d.artist}-${d.title}`} className="disc">
               <div className="disc-head">
@@ -91,13 +106,19 @@ function PicksView({ picks }: { picks: CopilotPicks }) {
                 <strong className="truncate">
                   {d.artist} – {d.title}
                 </strong>
-                {d.bpm ? <span className="mono faint">{Math.round(d.bpm)} BPM</span> : null}
+                {d.bpm ? <span className="mono faint">~{Math.round(d.bpm)} BPM</span> : null}
                 {d.key ? <span className="mono faint">{d.key}</span> : null}
               </div>
+              {(d.album || d.year) && (
+                <span className="disc-from faint">
+                  {d.album ? `From ${d.album}` : 'Released'}
+                  {d.year ? ` (${d.year})` : ''}
+                </span>
+              )}
               <p>{d.why}</p>
               {d.mixTip && <p className="faint">Mix tip: {d.mixTip}</p>}
               <div className="disc-links">
-                {searchLinks(d.title, d.artist).map((l) => (
+                {searchLinks(d, picks.scene).map((l) => (
                   <a key={l.label} href={l.href} target="_blank" rel="noreferrer noopener">
                     {l.label}
                   </a>
@@ -106,7 +127,8 @@ function PicksView({ picks }: { picks: CopilotPicks }) {
             </div>
           ))}
           <p className="faint small">
-            Suggestions come from the AI's knowledge – check BPM/key after importing.
+            To mix one, add your own copy with Import in the Library. BPM and key here are the AI's estimates;
+            MixMind measures the real ones when you import.
           </p>
         </div>
       )}
@@ -153,6 +175,10 @@ const QUICK: { label: string; run: () => void }[] = [
       ),
   },
   {
+    label: 'Bollywood songs to mix in',
+    run: () => void askForPicks('Suggest Bollywood songs I could mix in after this one.', true, 'bollywood'),
+  },
+  {
     label: 'How do I mix A into B?',
     run: () =>
       void sendChat(
@@ -189,8 +215,8 @@ export function CopilotChat() {
           <div className="chat-empty">
             <span className="ai-orb is-big" aria-hidden />
             <p>
-              Ask your AI DJ anything – what to play next, how to mix it, or which new tracks to dig for. It
-              sees both decks, your library and what you have played.
+              Ask your AI DJ anything – what to play next, how to mix it, or which new tracks to dig for,
+              Bollywood included. It sees both decks, your library and what you have played.
               <span className="faint">
                 {' '}
                 ({status.provider ? providerInfo(status.provider).label : 'AI'}

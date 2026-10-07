@@ -30,6 +30,9 @@ listens to your music, tells you what to play next, and mixes it in for you.
   library. It can pick tracks, suggest real-world songs to look up (with search links), and plan a
   whole set (for example _"60 minutes, warm-up to peak"_). It works with free services (Google
   Gemini, Groq, OpenRouter, or Ollama on your own computer) as well as Claude.
+- **Bollywood suggestions.** _Bollywood songs to mix in_ asks the AI for real Hindi film, Punjabi and
+  Indian pop songs that would work after the current track, each with its film and year, a way in,
+  and JioSaavn, Spotify and YouTube links. To mix one, import your own copy of the song.
 
 ### The decks and mixer
 
@@ -39,6 +42,8 @@ listens to your music, tells you what to play next, and mixes it in for you.
 - **Mixer:** trim, a 3-band isolator EQ with full kills, a low-pass/high-pass filter sweep, channel
   faders with meters, a crossfader with three curves (smooth, linear, cut), master limiter and a
   headphone cue (split cue).
+- **Smart crossfader:** one slide can also swap the basses as it passes the middle, or fade the deck
+  you're leaving out through a filter. An amber dot on a knob shows where the crossfader is taking it.
 - **FX** per deck, synced to the beat: echo, reverb, flanger, phaser, crush, gate and wobble.
 - **Sampler:** 8 one-shots (air horn, siren, laser, riser, boom, crash, scratch, rewind) on the
   pads.
@@ -49,6 +54,9 @@ listens to your music, tells you what to play next, and mixes it in for you.
 
 - **Layouts:** separate layouts for desktop, tablet and phone. The app installs as a PWA and keeps
   working offline (the built-in AI runs locally).
+- **Multi-touch:** every control follows its own finger, so you can start a deck, ride its volume and
+  cut the other deck's bass at the same time. On a phone the Decks screen has each deck's bass,
+  filter and volume next to the transport, and pinching on the decks doesn't zoom the page.
 - **Controllers and keyboard:** MIDI controllers via MIDI learn, plus keyboard shortcuts.
 - **Library:** drag and drop files or whole folders in any format your browser can decode (MP3,
   AAC/M4A, WAV, FLAC, OGG/Opus…). Tags and artwork are read from the files. Everything is stored in

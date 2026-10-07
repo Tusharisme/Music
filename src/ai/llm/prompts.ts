@@ -1,5 +1,6 @@
 import {
   TECHNIQUE_IDS,
+  type Scene,
   type ChatRequest,
   type DjContext,
   type PicksRequest,
@@ -14,10 +15,13 @@ What the mixer can do (refer to these by name):
 - Per channel: trim, 3-band kill EQ (high/mid/low), a one-knob filter (left = low-pass, right = high-pass) and a channel fader; plus a crossfader and sampler pads (air horn, siren, riser, boom…).
 - An "AI Mix" button that performs a planned transition automatically. Transition technique ids: bass-swap, long-blend, filter-fade, echo-out, loop-roll, quick-cut, tempo-ramp, reverb-wash, spinback.
 
+You also know Bollywood and wider Indian music (Hindi film songs, Punjabi and Bhangra, Indian pop) and how DJs play it at Bollywood nights and weddings. Many film songs have long intros or change tempo partway through, and older ones were played by live musicians, so their tempo drifts and long beat-matched blends can slip. Into and out of those, prefer starting on a hook or chorus, short blends, echo outs and quick cuts.
+
 Ground rules:
 - Base your advice on the data provided: BPM, Camelot key, energy (1–10), mood, intro/outro length, play history and the local engine's shortlist. The shortlist scores are a strong starting point, but use your own musical judgement.
 - Only refer to library tracks by their exact id. Never invent tracks that are not in the library.
 - When suggesting songs from outside the library, only name real, existing songs you are confident about. If you are unsure of a song's BPM or key, say so instead of guessing.
+- Never quote or paraphrase song lyrics. Refer to songs by title, artist, and film or album.
 - Be concise and practical: which deck, which bar, which EQ move, which effect. Friendly DJ language, no filler.`;
 
 const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -62,11 +66,15 @@ export function liveBlock(ctx: DjContext): string {
   return `## Decks right now\n${decks}\n\n## Local engine shortlist for the next track (score 0–100, reasons)\n${shortlist}\n\n## Played this session\n${history}\n\n## Requested vibe: ${ctx.vibe}`;
 }
 
+const DISCOVER: Record<Scene | 'any', string> = {
+  any: 'Also suggest up to 5 real songs NOT in the library that would mix well after the current track (fill "discover").',
+  bollywood:
+    'If the library has Bollywood or other Indian tracks, prefer those for the picks. Also suggest up to 5 real Bollywood songs (Hindi film songs; Punjabi and Indian pop hits are fine too) that are NOT in the library and would work after the current track: fill "discover", with the film or album and the year of each. Favour dance-floor songs and official remixes whose tempo is close to the current BPM, or at half or double time. In "mixTip", say how to get in: which part of the song to start on and which transition to use.',
+};
+
 export function picksPrompt(req: PicksRequest): string {
   const ask = req.request?.trim() ? `The DJ adds: "${req.request.trim()}"\n\n` : '';
-  const discover = req.discover
-    ? 'Also suggest up to 5 real songs NOT in the library that would mix well after the current track (fill "discover").'
-    : 'Leave "discover" empty.';
+  const discover = req.discover ? DISCOVER[req.scene ?? 'any'] : 'Leave "discover" empty.';
   return `${liveBlock(req.context)}\n\n${ask}Pick up to 4 library tracks to play next (best first) for the playing deck, each with the best transition technique and one concrete tip. ${discover}`;
 }
 
@@ -90,10 +98,10 @@ export const PICKS_SHAPE = `Reply with only a JSON object (no other text) in exa
     { "trackId": "<exact id from the library>", "why": "why it works next (key, tempo, energy)", "technique": "<one of: ${TECHNIQUES}>", "tip": "one concrete mixing tip" }
   ],
   "discover": [
-    { "title": "song title", "artist": "artist", "why": "why it fits", "bpm": 124, "key": "8A", "mixTip": "how to mix into it" }
+    { "title": "song title", "artist": "artist", "album": "film or album", "year": 2016, "why": "why it fits", "bpm": 124, "key": "8A", "mixTip": "how to mix into it" }
   ]
 }
-"picks" has at most 4 items, best first. Use null for an unknown bpm or key.`;
+"picks" has at most 4 items, best first. Use null for an unknown album, year, bpm or key.`;
 
 export const SET_PLAN_SHAPE = `Reply with only a JSON object (no other text) in exactly this shape:
 {

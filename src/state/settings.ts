@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { CrossfaderCurve } from '../audio/curves';
+import type { CrossfaderCurve, CrossfaderMode } from '../audio/curves';
 import type { KeyNotation } from '../music/keys';
 import type { MixStyle, Vibe } from '../ai/recommender';
 import type { SyncMode } from '../audio/protocol';
@@ -26,6 +26,8 @@ export interface SettingsState {
   limiter: boolean;
   splitCue: boolean;
   crossfaderCurve: CrossfaderCurve;
+  /** Combo move the crossfader also performs (bass swap or filter). */
+  crossfaderMode: CrossfaderMode;
   filterResonance: number;
   waveformSeconds: number;
   waveformStyle: 'bands' | 'rgb' | 'mono';
@@ -81,6 +83,7 @@ export const useSettings = create<SettingsState>()(
       limiter: true,
       splitCue: false,
       crossfaderCurve: 'smooth',
+      crossfaderMode: 'off',
       filterResonance: 4,
       waveformSeconds: 10,
       waveformStyle: 'bands',

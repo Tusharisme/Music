@@ -12,62 +12,83 @@ import { fmtBeats, fmtPct } from '../../utils/format';
 
 const RANGES = [6, 8, 16, 50];
 
-export function TempoSection({ deck, horizontal = false }: { deck: number; horizontal?: boolean }) {
+/**
+ * Pitch fader with range, read-out and nudge buttons. `inline` is the one-row phone version:
+ * the read-out doubles as the reset button.
+ */
+export function TempoSection({ deck, inline = false }: { deck: number; inline?: boolean }) {
   const d = useDecks((s) => s.decks[deck]);
   const range = d.tempoRange / 100;
   const m = `deck${deck}`;
-  return (
-    <div className={`tempo ${horizontal ? 'is-h' : ''}`}>
-      <div className="tempo-top">
+  const zero = Math.abs(d.tempo - 1) < 1e-4;
+  const rangeChip = (
+    <button
+      type="button"
+      className="chip mono"
+      title="Pitch range"
+      onClick={() => ctl.setTempoRange(deck, RANGES[(RANGES.indexOf(d.tempoRange) + 1) % RANGES.length])}
+    >
+      ±{d.tempoRange}%
+    </button>
+  );
+  const fader = (
+    <Fader
+      value={d.tempo}
+      min={1 - range}
+      max={1 + range}
+      defaultValue={1}
+      detent={1}
+      jump={false}
+      orientation={inline ? 'horizontal' : 'vertical'}
+      label="Tempo"
+      className="tempo-fader"
+      ticks={8}
+      midi={`${m}.tempo`}
+      format={fmtPct}
+      onChange={(v) => ctl.setTempo(deck, v)}
+    />
+  );
+  const nudge = (dir: -1 | 1) => (
+    <Btn
+      size="s"
+      onPress={() => ctl.nudge(deck, dir)}
+      onRelease={() => ctl.nudge(deck, 0)}
+      title={`Nudge ${dir < 0 ? 'slower' : 'faster'} (hold)`}
+      aria-label={`Nudge ${dir < 0 ? 'slower' : 'faster'}`}
+    >
+      <Icon name={dir < 0 ? 'minus' : 'plus'} size={12} />
+    </Btn>
+  );
+  if (inline)
+    return (
+      <div className="tempo is-inline">
+        {rangeChip}
+        {nudge(-1)}
+        {fader}
+        {nudge(1)}
         <button
           type="button"
-          className="chip mono"
-          title="Pitch range"
-          onClick={() => ctl.setTempoRange(deck, RANGES[(RANGES.indexOf(d.tempoRange) + 1) % RANGES.length])}
+          className={`chip mono tempo-val ${zero ? 'faint' : ''}`}
+          title="Tempo – tap to reset to 0%"
+          onClick={() => ctl.resetTempo(deck)}
         >
-          ±{d.tempoRange}%
-        </button>
-        <span className={`mono tempo-val ${Math.abs(d.tempo - 1) < 1e-4 ? 'faint' : ''}`}>
           {fmtPct(d.tempo)}
-        </span>
+        </button>
       </div>
-      <Fader
-        value={d.tempo}
-        min={1 - range}
-        max={1 + range}
-        defaultValue={1}
-        detent={1}
-        jump={false}
-        orientation={horizontal ? 'horizontal' : 'vertical'}
-        label="Tempo"
-        className="tempo-fader"
-        ticks={8}
-        midi={`${m}.tempo`}
-        format={fmtPct}
-        onChange={(v) => ctl.setTempo(deck, v)}
-      />
+    );
+  return (
+    <div className="tempo">
+      <div className="tempo-top">
+        {rangeChip}
+        <span className={`mono tempo-val ${zero ? 'faint' : ''}`}>{fmtPct(d.tempo)}</span>
+      </div>
+      {fader}
       <div className="tempo-btns">
-        <Btn
-          size="s"
-          onPress={() => ctl.nudge(deck, -1)}
-          onRelease={() => ctl.nudge(deck, 0)}
-          title="Nudge slower (hold)"
-          aria-label="Nudge slower"
-        >
-          <Icon name="minus" size={12} />
-        </Btn>
+        {nudge(-1)}
         <Btn size="s" onPress={() => ctl.resetTempo(deck)} title="Reset tempo to 0%">
           0
         </Btn>
-        <Btn
-          size="s"
-          onPress={() => ctl.nudge(deck, 1)}
-          onRelease={() => ctl.nudge(deck, 0)}
-          title="Nudge faster (hold)"
-          aria-label="Nudge faster"
-        >
-          <Icon name="plus" size={12} />
-        </Btn>
+        {nudge(1)}
       </div>
     </div>
   );

@@ -25,7 +25,8 @@ async function fakeGemini(route: Route) {
         data: [{ id: 'models/gemini-flash-latest' }, { id: 'models/gemini-3.8-flash' }],
       },
     });
-  const body = req.postDataJSON() as { stream?: boolean; response_format?: unknown };
+  const body = req.postDataJSON() as { stream?: boolean; messages: { content: string }[] };
+  const bollywood = body.messages.some((m) => m.content.includes('real Bollywood songs'));
   if (body.stream)
     return route.fulfill({
       headers: { 'content-type': 'text/event-stream' },
@@ -47,7 +48,20 @@ async function fakeGemini(route: Route) {
                   tip: 'Swap the lows on the first drop.',
                 },
               ],
-              discover: [],
+              discover: bollywood
+                ? [
+                    {
+                      title: 'Test Song',
+                      artist: 'Test Singer',
+                      album: 'Test Film',
+                      year: 2016,
+                      why: 'Same key and a dhol groove that lifts the floor.',
+                      bpm: 124,
+                      key: '8A',
+                      mixTip: 'Cut in on the chorus.',
+                    },
+                  ]
+                : [],
             }),
           },
           finish_reason: 'stop',
@@ -88,6 +102,18 @@ test('connect a free Gemini key and chat with the AI DJ', async ({ page }) => {
   await page.locator('.quick button', { hasText: 'What should I play next?' }).click();
   await expect(page.locator('.pick strong').first()).toHaveText('Afterglow');
   await expect(page.locator('.pick .btn-ai').first()).toContainText('AI Mix');
+
+  // Bollywood suggestions name the film and link to JioSaavn, Spotify and YouTube.
+  await page.locator('.quick button', { hasText: 'Bollywood songs to mix in' }).click();
+  const disc = page.locator('.discover').last();
+  await expect(disc.locator('.label')).toHaveText('Bollywood songs to mix in');
+  await expect(disc.locator('.disc-from')).toHaveText('From Test Film (2016)');
+  await expect(disc.getByRole('link', { name: 'JioSaavn' })).toHaveAttribute(
+    'href',
+    'https://www.jiosaavn.com/search/song/Test%20Song%20Test%20Film',
+  );
+  await expect(disc.getByRole('link', { name: 'Spotify' })).toBeVisible();
+  await expect(disc.getByRole('link', { name: 'YouTube' })).toBeVisible();
 
   // The key survives a reload (stored in this browser only).
   await page.reload();
