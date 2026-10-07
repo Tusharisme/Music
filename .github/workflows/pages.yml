@@ -1,9 +1,15 @@
-# Publishes the app as a static site on GitHub Pages (Claude works there with a
-# key pasted into Settings; the built-in AI needs no key at all).
-# One-time setup: Settings → Pages → Source: "GitHub Actions", then run this workflow.
+# Publishes the app on GitHub Pages after CI passes on the default branch (or when run by hand).
+# One-time setup: Settings → Pages → Source: "GitHub Actions". Until then deploys are skipped.
+#
+# Optional: add a repository secret GEMINI_API_KEY to give every visitor the AI chat without
+# their own key. On a static site that key is readable in the page code, so restrict it to this
+# site first (Google Cloud Console → Credentials → the key → Websites: https://<user>.github.io/*).
 name: Deploy to GitHub Pages
 
 on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -16,13 +22,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check:
+    name: Is GitHub Pages switched on?
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.pages.outputs.enabled }}
+    steps:
+      - id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${{ github.repository }}/pages" --silent; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice title=GitHub Pages is off::Turn it on in Settings → Pages → Source: GitHub Actions, then run this workflow."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
   deploy:
+    needs: check
+    if: needs.check.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -31,6 +63,11 @@ jobs:
       - run: npx vite build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
+          # Static hosting has no /api server.
+          VITE_NO_SERVER: '1'
+          # Empty unless the optional secret is set (see the note at the top).
+          VITE_SITE_AI_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VITE_SITE_AI_PROVIDER: gemini
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

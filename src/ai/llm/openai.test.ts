@@ -134,7 +134,7 @@ describe('OpenAI-compatible backend', () => {
     const c = calls[0];
     expect(c.url).toBe(`${baseUrl}/chat/completions`);
     expect(c.headers.authorization).toBe('Bearer free-key');
-    expect(c.body.model).toBe('gemini-flash-latest');
+    expect(c.body.model).toBe('gemini-flash-lite-latest');
     expect(c.body.reasoning_effort).toBe('low');
     const rf = c.body.response_format as { type: string; json_schema: { name: string; schema: object } };
     expect(rf.type).toBe('json_schema');
@@ -170,6 +170,35 @@ describe('OpenAI-compatible backend', () => {
         : completion(picksJson),
     );
     await runPicks(openAiBackend(cfg({ provider: 'groq', model: 'qwen-x' })), { context, discover: false });
+    expect(calls).toHaveLength(2);
+    expect(calls[1].body).not.toHaveProperty('reasoning_effort');
+    expect((calls[1].body.response_format as { type: string }).type).toBe('json_schema');
+  });
+
+  it('moves to another free model when one is overloaded, and skips it for a while', async () => {
+    const { calls, cfg } = fake((call) =>
+      call.body.model === 'gemini-flash-latest'
+        ? fail(503, [{ error: { code: 503, message: 'This model is currently experiencing high demand.' } }])
+        : completion(picksJson),
+    );
+    const backend = () => openAiBackend(cfg({ model: 'gemini-flash-latest' }));
+    const out = await runPicks(backend(), { context, discover: false });
+    expect(out.picks[0].trackId).toBe('demo-bravo');
+    expect(calls.map((c) => c.body.model)).toEqual(['gemini-flash-latest', 'gemini-flash-lite-latest']);
+
+    await runPicks(backend(), { context, discover: false });
+    expect(calls[2].body.model).toBe('gemini-flash-lite-latest');
+  });
+
+  it('treats "thinking level not supported" as a reasoning refusal', async () => {
+    const { calls, cfg } = fake((call) =>
+      'reasoning_effort' in call.body
+        ? fail(400, [
+            { error: { code: 400, message: 'Thinking level LOW is not supported for this model.' } },
+          ])
+        : completion(picksJson),
+    );
+    await runPicks(openAiBackend(cfg({ model: 'gemini-3.8-flash' })), { context, discover: false });
     expect(calls).toHaveLength(2);
     expect(calls[1].body).not.toHaveProperty('reasoning_effort');
     expect((calls[1].body.response_format as { type: string }).type).toBe('json_schema');
@@ -290,7 +319,7 @@ describe('OpenAI-compatible backend', () => {
     });
     expect((await run(fail(404, { error: { message: 'model not found' } }))) as object).toMatchObject({
       status: 404,
-      message: expect.stringContaining('gemini-flash-latest'),
+      message: expect.stringContaining('gemini-flash-lite-latest'),
     });
   });
 
@@ -336,8 +365,13 @@ describe('OpenAI-compatible backend', () => {
         { id: 'models/gemini-embedding-001' },
         { id: 'models/gemini-3.8-flash-tts' },
         { id: 'models/imagen-4' },
+        { id: 'models/gemini-2.5-flash-native-audio-latest' },
+        { id: 'models/gemini-pro-latest' },
+        { id: 'models/gemini-3.1-pro-preview' },
+        { id: 'models/deep-research-preview-04-2026' },
+        { id: 'models/gemma-4-31b-it' },
       ]),
-    ).toEqual(['gemini-flash-latest', 'gemini-3.8-flash']);
+    ).toEqual(['gemini-flash-latest', 'gemini-3.8-flash', 'gemma-4-31b-it']);
     expect(
       pickModels('openrouter', [
         { id: 'paid/model', pricing: { prompt: '0.000001', completion: '0.000002' } },

@@ -4,12 +4,25 @@ import type { CopilotStatus } from '../../state/ai';
 import { isProviderId, providerInfo, type ProviderId } from './providers';
 
 /**
- * Browser side of the copilot: talks to the MixMind server when it has an AI key, otherwise
- * straight to the chosen provider with the key saved in this browser.
+ * Browser side of the copilot: talks straight to the provider with the key saved in this
+ * browser, or uses what the site provides – its server's AI, or a key built into a static
+ * deployment.
  */
 
 const BASE = import.meta.env.BASE_URL ?? '/';
 const api = (path: string) => `${BASE}api/${path}`;
+
+/** Static deployments (e.g. GitHub Pages) have no /api to ask. */
+const NO_SERVER = ['1', 'true'].includes(String(import.meta.env.VITE_NO_SERVER ?? ''));
+
+/** A key built into this deployment so visitors get the chat without their own (visible in the page code). */
+const SITE = (() => {
+  const apiKey = String(import.meta.env.VITE_SITE_AI_KEY ?? '').trim();
+  if (!apiKey) return null;
+  const provider = providerInfo(String(import.meta.env.VITE_SITE_AI_PROVIDER ?? '') || 'gemini');
+  const model = String(import.meta.env.VITE_SITE_AI_MODEL ?? '').trim() || provider.defaultModel;
+  return { provider, apiKey, model, baseUrl: provider.baseUrl, effort: 'low' as const };
+})();
 
 interface ServerInfo {
   ai: boolean;
@@ -20,6 +33,7 @@ interface ServerInfo {
 let server: ServerInfo | null = null;
 
 async function probeServer(): Promise<ServerInfo> {
+  if (NO_SERVER) return { ai: false };
   try {
     const r = await fetch(api('health'), { signal: AbortSignal.timeout(2500) });
     if (!r.ok) return { ai: false };
@@ -48,7 +62,7 @@ export function localConfig() {
 }
 
 /** Work out how (and whether) the copilot can be reached: a service connected in this browser
- * first (it's the user's own choice), then the MixMind server's. */
+ * first (it's the user's own choice), then whatever the site provides. */
 export async function checkCopilot(force = false): Promise<CopilotStatus> {
   const s = useSettings.getState();
   if (s.aiMode === 'off')
@@ -60,6 +74,7 @@ export async function checkCopilot(force = false): Promise<CopilotStatus> {
     if (usable) return { state: 'ready', via: 'byok', provider: c.provider.id, model: c.model };
   }
   if (s.aiMode !== 'byok') {
+    if (SITE) return { state: 'ready', via: 'site', provider: SITE.provider.id, model: SITE.model };
     if (server === null || force) server = await probeServer();
     if (server.ai) return { state: 'ready', via: 'server', provider: server.provider, model: server.model };
   }
@@ -68,13 +83,13 @@ export async function checkCopilot(force = false): Promise<CopilotStatus> {
     via: null,
     reason:
       s.aiMode === 'server'
-        ? 'The MixMind server has no AI key configured.'
+        ? 'This site doesn’t provide an AI key – connect your own (Google Gemini and Groq are free).'
         : 'Not connected yet – pick an AI service and add its key (Google Gemini and Groq are free).',
   };
 }
 
-async function direct() {
-  const c = localConfig();
+async function direct(via: 'byok' | 'site') {
+  const c = via === 'site' && SITE ? SITE : localConfig();
   const [{ createBackend }, core, { describeError }] = await Promise.all([
     import('./backend'),
     import('./core'),
@@ -112,9 +127,16 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return j;
 }
 
-export async function askPicks(via: 'server' | 'byok', req: PicksRequest): Promise<PicksOutput> {
+export type Via = 'server' | 'byok' | 'site';
+
+/** How a connection is described in the UI ("" for the user's own). */
+export function viaLabel(via: Via | null): string {
+  return via === 'server' ? 'via the MixMind server' : via === 'site' ? 'provided by this site' : '';
+}
+
+export async function askPicks(via: Via, req: PicksRequest): Promise<PicksOutput> {
   if (via === 'server') return postJson<PicksOutput>('ai/picks', { ...req, options: serverOptions() });
-  const { backend, core, fail } = await direct();
+  const { backend, core, fail } = await direct(via);
   try {
     return await core.runPicks(backend, req);
   } catch (err) {
@@ -122,9 +144,9 @@ export async function askPicks(via: 'server' | 'byok', req: PicksRequest): Promi
   }
 }
 
-export async function planSet(via: 'server' | 'byok', req: SetPlanRequest): Promise<SetPlanOutput> {
+export async function planSet(via: Via, req: SetPlanRequest): Promise<SetPlanOutput> {
   if (via === 'server') return postJson<SetPlanOutput>('ai/setplan', { ...req, options: serverOptions() });
-  const { backend, core, fail } = await direct();
+  const { backend, core, fail } = await direct(via);
   try {
     return await core.runSetPlan(backend, req);
   } catch (err) {
@@ -134,13 +156,13 @@ export async function planSet(via: 'server' | 'byok', req: SetPlanRequest): Prom
 
 /** Stream a chat answer; resolves with the full text. */
 export async function chat(
-  via: 'server' | 'byok',
+  via: Via,
   req: ChatRequest,
   onText: (delta: string) => void,
   signal?: AbortSignal,
 ): Promise<string> {
-  if (via === 'byok') {
-    const { backend, core, fail } = await direct();
+  if (via !== 'server') {
+    const { backend, core, fail } = await direct(via);
     try {
       return await core.streamChat(backend, req, onText, signal);
     } catch (err) {

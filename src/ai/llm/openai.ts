@@ -15,6 +15,10 @@ const MODES: JsonMode[] = ['schema', 'object', 'prompt'];
 
 const learned = new Map<string, { mode?: JsonMode; noReasoning?: boolean }>();
 
+/** Models that were just overloaded or rate-limited, skipped for a minute. */
+const busyUntil = new Map<string, number>();
+const BUSY_MS = 60_000;
+
 const JSON_TIMEOUT_MS = 90_000;
 const CHAT_TIMEOUT_MS = 120_000;
 
@@ -264,24 +268,36 @@ export function openAiBackend(cfg: BackendConfig): Backend {
   const memo = learned.get(memoKey) ?? {};
   learned.set(memoKey, memo);
 
+  // The chosen model first, then the provider's fallbacks; recently busy ones go last.
+  const candidates = [model, ...p.fallbackModels.filter((m) => m !== model)];
+  const isBusy = (m: string) => (busyUntil.get(`${base}|${m}`) ?? 0) > Date.now();
+
   async function post(body: Record<string, unknown>, signal: AbortSignal): Promise<Response> {
-    let r: Response;
-    try {
-      r = await doFetch(`${base}/chat/completions`, {
-        method: 'POST',
-        headers: { ...headers, 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-        signal,
-      });
-    } catch (err) {
-      throw networkError(err, p);
+    let last: unknown = null;
+    for (const m of [...candidates.filter((c) => !isBusy(c)), ...candidates.filter(isBusy)]) {
+      let r: Response;
+      try {
+        r = await doFetch(`${base}/chat/completions`, {
+          method: 'POST',
+          headers: { ...headers, 'content-type': 'application/json' },
+          body: JSON.stringify({ ...body, model: m }),
+          signal,
+        });
+      } catch (err) {
+        throw networkError(err, p);
+      }
+      if (r.ok) return r;
+      const err = await httpError(r, p, m);
+      // Overloaded or rate-limited: another free model usually has room.
+      if (err.code !== 'limit' && !(err.code === 'provider' && err.status === 503)) throw err;
+      busyUntil.set(`${base}|${m}`, Date.now() + BUSY_MS);
+      last = err;
     }
-    if (!r.ok) throw await httpError(r, p, model);
-    return r;
+    throw last;
   }
 
   const rejectsReasoning = (err: unknown) =>
-    err instanceof AiError && err.code === 'rejected' && /reason/i.test(err.detail);
+    err instanceof AiError && err.code === 'rejected' && /reason|thinking/i.test(err.detail);
 
   async function json(task: JsonTask): Promise<unknown> {
     let reasoning = p.lowReasoning && !memo.noReasoning;
@@ -403,7 +419,9 @@ export function openAiBackend(cfg: BackendConfig): Backend {
 // ---------------------------------------------------------------- model lists
 
 const NOT_CHAT =
-  /embed|whisper|tts|transcri|orpheus|guard|imagen|image|veo|lyria|moderation|rerank|aqa|live/i;
+  /embed|whisper|tts|transcri|orpheus|guard|imagen|image|veo|lyria|moderation|rerank|aqa|live|audio|computer-use|robotics|deep-research|antigravity|nano-banana|omni|customtools/i;
+/** Gemini's Pro models aren't on the free tier. */
+const GEMINI_PAID = /(^|-)pro(-|$)/;
 
 interface ModelEntry {
   id?: unknown;
@@ -423,7 +441,12 @@ export function pickModels(provider: ProviderId, data: unknown[]): string[] {
   };
   const ids = (provider === 'openrouter' ? entries.filter(free) : entries)
     .map((m) => (typeof m.id === 'string' ? m.id.replace(/^models\//, '') : ''))
-    .filter((id) => id && !NOT_CHAT.test(id) && (provider !== 'gemini' || id.startsWith('gemini')));
+    .filter(
+      (id) =>
+        id &&
+        !NOT_CHAT.test(id) &&
+        (provider !== 'gemini' || (/^(gemini|gemma)/.test(id) && !GEMINI_PAID.test(id))),
+    );
   const rank = (id: string) => (id.endsWith('-latest') || id === 'openrouter/free' ? 0 : 1);
   return [...new Set(ids)].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
 }

@@ -62,7 +62,8 @@ export interface SetPlan {
 /** Whether (and how) the language-model copilot can be reached. */
 export interface CopilotStatus {
   state: 'checking' | 'ready' | 'unavailable';
-  via: 'server' | 'byok' | null;
+  /** byok: a service connected in this browser; site: a key built into this deployment. */
+  via: 'server' | 'byok' | 'site' | null;
   provider?: ProviderId;
   model?: string;
   reason?: string;

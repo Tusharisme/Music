@@ -5,6 +5,7 @@ import { useLibrary } from '../../state/library';
 import { engine } from '../../audio/engine';
 import { useAI } from '../../state/ai';
 import { providerInfo } from '../../ai/llm/providers';
+import { viaLabel } from '../../ai/llm/client';
 import { ProviderSetup } from '../ai/ProviderSetup';
 import { analysisQueue } from '../../library/analysisQueue';
 import { enableMidi, midiInputs, midiSupported } from '../../midi/midi';
@@ -226,7 +227,7 @@ export function SettingsModal() {
             label="AI chat connection"
             hint={
               copilot.state === 'ready'
-                ? `Connected: ${copilot.provider ? providerInfo(copilot.provider).label : 'AI'}${copilot.model ? ` · ${copilot.model}` : ''}${copilot.via === 'server' ? ' (via the MixMind server)' : ''}`
+                ? `Connected: ${copilot.provider ? providerInfo(copilot.provider).label : 'AI'}${copilot.model ? ` · ${copilot.model}` : ''}${viaLabel(copilot.via) ? ` (${viaLabel(copilot.via)})` : ''}`
                 : copilot.reason
             }
           >
@@ -237,9 +238,13 @@ export function SettingsModal() {
                 {
                   value: 'auto',
                   label: 'Auto',
-                  title: "Use the server's AI if it has one, otherwise this browser's",
+                  title: 'Your own service if you connected one, otherwise the AI this site provides',
                 },
-                { value: 'server', label: 'Server', title: 'Only the MixMind server’s AI' },
+                {
+                  value: 'server',
+                  label: 'Site',
+                  title: 'Only the AI this site provides (its server or built-in key)',
+                },
                 { value: 'byok', label: 'This browser', title: 'Only the service and key set up below' },
                 { value: 'off', label: 'Off' },
               ]}

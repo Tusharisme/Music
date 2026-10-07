@@ -2,7 +2,7 @@ import { useAI, type ChatMessage } from '../state/ai';
 import { useLibrary } from '../state/library';
 import { useDecks } from '../state/decks';
 import { useUI } from '../state/ui';
-import { askPicks, chat, checkCopilot, planSet } from './llm/client';
+import { askPicks, chat, checkCopilot, planSet, type Via } from './llm/client';
 import { buildContext, summarizeTrack } from './llm/context';
 import type { TrackSummary } from './llm/schema';
 
@@ -13,7 +13,7 @@ export async function refreshCopilotStatus(force = false): Promise<void> {
   useAI.getState().patch({ copilot: await checkCopilot(force) });
 }
 
-function via(): 'server' | 'byok' | null {
+function via(): Via | null {
   const c = useAI.getState().copilot;
   return c.state === 'ready' ? c.via : null;
 }

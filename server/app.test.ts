@@ -44,7 +44,7 @@ describe('health endpoint', () => {
     process.env.GEMINI_API_KEY = 'secret-key';
     const res = await app.request('/api/health');
     const body = await res.json();
-    expect(body).toEqual({ ok: true, ai: true, provider: 'gemini', model: 'gemini-flash-latest' });
+    expect(body).toEqual({ ok: true, ai: true, provider: 'gemini', model: 'gemini-flash-lite-latest' });
     expect(JSON.stringify(body)).not.toContain('secret');
   });
 });

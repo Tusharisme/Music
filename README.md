@@ -90,7 +90,8 @@ To give everyone using your deployment the chat without their own key, set one k
 instead (`cp .env.example .env`, then for example `GEMINI_API_KEY=...`). It stays on the server and the
 browser talks to `/api`. A visitor who connects their own service uses that instead.
 
-Model defaults: `gemini-flash-latest`, `openai/gpt-oss-120b` (Groq), `openrouter/free` (OpenRouter
+Model defaults: `gemini-flash-lite-latest` (answers in about 2 seconds; if a model is overloaded the app
+moves on to another free one), `openai/gpt-oss-120b` (Groq), `openrouter/free` (OpenRouter
 picks a free model) and `llama3.2` (Ollama). You can change the model in the app; **Connect** loads
 the list the service offers. Claude defaults to Claude Opus 5.5, and its requests opt into Anthropic's
 server-side refusal fallbacks (`fallbacks: "default"`).
@@ -123,10 +124,21 @@ docker build -t mixmind .
 docker run -p 8787:8787 -e GEMINI_API_KEY=your-free-key mixmind
 ```
 
-**Static hosting** (GitHub Pages, Netlify, any CDN): the `vite build` output works on its own; each
-visitor connects the AI chat with their own (free) key. This repo includes a GitHub Pages workflow. To use it,
-go to Settings → Pages, set the source to **GitHub Actions**, then run **Deploy to GitHub Pages**
-from the Actions tab.
+**GitHub Pages:** the included workflow publishes the site to `https://<user>.github.io/<repo>/` after
+CI passes on the default branch. One-time setup:
+
+1. Settings → Pages → Build and deployment → Source: **GitHub Actions**. (On GitHub Free, Pages needs a
+   public repository.)
+2. Actions → **Deploy to GitHub Pages** → **Run workflow** (later pushes deploy by themselves).
+
+There's no server on Pages, so each visitor connects the AI chat with their own free key. To give
+everyone the chat without one, add a repository secret named `GEMINI_API_KEY` (Settings → Secrets and
+variables → Actions) and run the deploy again. That key ends up in the page code where anyone can read
+it, so restrict it first: in the [Google Cloud console](https://console.cloud.google.com/apis/credentials),
+open the key and set **Application restrictions → Websites** to `https://<user>.github.io/*`.
+
+Any other static host works too: build with `BASE_PATH=/sub/path/ VITE_NO_SERVER=1 npx vite build` and
+upload `dist/`.
 
 Phones need HTTPS to install the app and use MIDI (localhost is fine for development).
 

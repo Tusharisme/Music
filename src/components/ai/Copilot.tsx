@@ -14,6 +14,7 @@ import { Icon } from '../Icon';
 import { RichText } from './RichText';
 import { ProviderSetup } from './ProviderSetup';
 import { providerInfo } from '../../ai/llm/providers';
+import { viaLabel } from '../../ai/llm/client';
 import { trackBpm, trackKey } from '../../ai/recommender';
 
 function searchLinks(title: string, artist: string) {
@@ -193,7 +194,7 @@ export function CopilotChat() {
               <span className="faint">
                 {' '}
                 ({status.provider ? providerInfo(status.provider).label : 'AI'}
-                {status.via === 'server' ? ' via the MixMind server' : ''})
+                {status.via && viaLabel(status.via) ? `, ${viaLabel(status.via)}` : ''})
               </span>
             </p>
           </div>

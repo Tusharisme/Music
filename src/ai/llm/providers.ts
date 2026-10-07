@@ -15,6 +15,8 @@ export interface ProviderInfo {
   defaultModel: string;
   /** Models to offer before a live list has been loaded. */
   models: string[];
+  /** Tried in order when the chosen model is overloaded or rate-limited (free tiers often are). */
+  fallbackModels: string[];
   needsKey: boolean;
   keyUrl?: string;
   keyHint?: string;
@@ -57,8 +59,10 @@ export const PROVIDERS: ProviderInfo[] = [
     kind: 'openai',
     free: 'Free tier on all Flash models – no credit card',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    defaultModel: 'gemini-flash-latest',
-    models: ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'],
+    // Flash-Lite answers in ~2 s; the bigger Flash models are often overloaded on the free tier.
+    defaultModel: 'gemini-flash-lite-latest',
+    models: ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'],
+    fallbackModels: ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-flash-latest'],
     needsKey: true,
     keyUrl: 'https://aistudio.google.com/apikey',
     keyHint: 'AIza…',
@@ -77,6 +81,7 @@ export const PROVIDERS: ProviderInfo[] = [
     baseUrl: 'https://api.groq.com/openai/v1',
     defaultModel: 'openai/gpt-oss-120b',
     models: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'],
+    fallbackModels: ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'],
     needsKey: true,
     keyUrl: 'https://console.groq.com/keys',
     keyHint: 'gsk_…',
@@ -98,6 +103,7 @@ export const PROVIDERS: ProviderInfo[] = [
     baseUrl: 'https://openrouter.ai/api/v1',
     defaultModel: 'openrouter/free',
     models: ['openrouter/free'],
+    fallbackModels: [],
     needsKey: true,
     keyUrl: 'https://openrouter.ai/keys',
     keyHint: 'sk-or-…',
@@ -118,6 +124,7 @@ export const PROVIDERS: ProviderInfo[] = [
     baseUrl: 'http://localhost:11434/v1',
     defaultModel: 'llama3.2',
     models: ['llama3.2', 'qwen3', 'gemma3', 'gpt-oss:20b'],
+    fallbackModels: [],
     needsKey: false,
     keyUrl: 'https://ollama.com/download',
     maxTracks: 60,
@@ -135,6 +142,7 @@ export const PROVIDERS: ProviderInfo[] = [
     baseUrl: '',
     defaultModel: CLAUDE_MODELS[0].id,
     models: CLAUDE_MODELS.map((m) => m.id),
+    fallbackModels: [],
     needsKey: true,
     keyUrl: 'https://console.anthropic.com/settings/keys',
     keyHint: 'sk-ant-…',
@@ -152,6 +160,7 @@ export const PROVIDERS: ProviderInfo[] = [
     baseUrl: '',
     defaultModel: '',
     models: [],
+    fallbackModels: [],
     needsKey: false,
     maxTracks: 150,
     maxTokens: 4096,

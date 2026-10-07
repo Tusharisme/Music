@@ -10,6 +10,7 @@ import { fmtBpm, fmtTime } from '../../utils/format';
 import { midiSupported } from '../../midi/midi';
 import { Icon } from '../Icon';
 import { providerInfo } from '../../ai/llm/providers';
+import { viaLabel } from '../../ai/llm/client';
 
 function RecTimer() {
   const ref = useRef<HTMLSpanElement>(null);
@@ -81,7 +82,7 @@ export function TopBar() {
         onClick={() => openSettings('ai')}
         title={
           copilot.state === 'ready'
-            ? `AI chat connected: ${aiName}${copilot.model ? ` (${copilot.model})` : ''}${copilot.via === 'server' ? ' via the server' : ''}`
+            ? `AI chat connected: ${aiName}${copilot.model ? ` (${copilot.model})` : ''}${viaLabel(copilot.via) ? `, ${viaLabel(copilot.via)}` : ''}`
             : 'AI chat not connected – suggestions, AI Mix and Auto DJ still work. Click to connect a free AI.'
         }
       >
